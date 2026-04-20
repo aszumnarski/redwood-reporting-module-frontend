@@ -32,6 +32,7 @@ import type {
   FetchReconciliationResponse,
   FetchReconciliationParams,
   ReconciliationRow,
+  ReconciliationStatusKey,
 } from "../reconciliation/types";
 
 import { StatusSummaryTable } from "./components/StatusSummaryTable";
@@ -75,15 +76,16 @@ export function ReconciliationRunnerPage() {
   const [error, setError] = useState<string | null>(null);
 
   // -------- UI-only state --------
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+
+  const [selectedStatusKey, setSelectedStatusKey] = useState<ReconciliationStatusKey | null>(null);
   const [refreshSubmitting, setRefreshSubmitting] = useState(false);
   const [confirmRefreshOpen, setConfirmRefreshOpen] = useState(false);
 
   useEffect(() => {
-    if (data && data.statusSummary.length > 0 && selectedStatus === null) {
-      setSelectedStatus(data.statusSummary[0].label);
+    if (data && data.statusSummary.length > 0 && selectedStatusKey === null) {
+      setSelectedStatusKey(data.statusSummary[0].key);
     }
-  }, [data, selectedStatus]);
+  }, [data, selectedStatusKey]);
 
   // -------------------------------
   // Initial load (optional)
@@ -107,7 +109,7 @@ export function ReconciliationRunnerPage() {
 
   async function runReport() {
     const params = toFetchParams(yearMonth, companyCode);
-    setSelectedStatus(null);
+    setSelectedStatusKey(null);
     setLoading(true);
     setError(null);
 
@@ -117,7 +119,7 @@ export function ReconciliationRunnerPage() {
       setData(response);
 
       // reset selection when new data arrives
-      setSelectedStatus(null);
+      setSelectedStatusKey(null);
     } catch (e) {
       setError("Failed to load reconciliation data");
     } finally {
@@ -125,31 +127,33 @@ export function ReconciliationRunnerPage() {
     }
   }
 
+  console.log("selectedStatusKey:", selectedStatusKey);
+
   function filterRowsByStatus(
     rows: ReconciliationRow[],
-    selectedStatus: string
+    selectedStatusKey: string
   ): ReconciliationRow[] {
-    switch (selectedStatus) {
-      case "Total reconciliations":
+    switch (selectedStatusKey) {
+      case "T":
         return rows;
 
-      case "Certified":
+      case "C":
         return rows.filter((row) => row.certificationStatus === "Certified");
 
-      case "Certified (no open items)":
+      case "C0":
         return rows.filter(
           (row) =>
             row.certificationStatus === "Certified" &&
             Number(row.unanalyzedQuantity) === 0
         );
 
-      case "Open":
+      case "O":
         return rows.filter((row) => row.certificationStatus === "Open");
 
-      case "Rejected":
+      case "R":
         return rows.filter((row) => row.certificationStatus === "Rejected");
 
-      case "With approver":
+      case "WA":
         return rows.filter(
           (row) =>
             row.certificationStatus === "Open" &&
@@ -157,7 +161,7 @@ export function ReconciliationRunnerPage() {
             !row.approverResponder
         );
 
-      case "With reviewer":
+      case "WR":
         return rows.filter(
           (row) =>
             row.certificationStatus === "Open" &&
@@ -165,7 +169,7 @@ export function ReconciliationRunnerPage() {
             !row.reviewerResponder
         );
 
-      case "Error":
+      case "E":
         return rows.filter((row) => row.jobStatus === "ERROR");
 
       default:
@@ -174,7 +178,7 @@ export function ReconciliationRunnerPage() {
   }
 
   const detailRows =
-    data && selectedStatus ? filterRowsByStatus(data.rows, selectedStatus) : [];
+    data && selectedStatusKey ? filterRowsByStatus(data.rows, selectedStatusKey) : [];
 
   const selectedCompanySystemStatus =
     !data || companyCode === "All"
@@ -341,16 +345,16 @@ export function ReconciliationRunnerPage() {
                 {viewMode === "table" && (
                   <StatusSummaryTable
                     data={data.statusSummary}
-                    selectedStatus={selectedStatus}
-                    onSelect={setSelectedStatus}
+                    selectedStatusKey={selectedStatusKey}
+                    onSelect={(item) => setSelectedStatusKey(item)}
                   />
                 )}
 
                 {viewMode === "chart" && (
                   <StatusSummaryChart
                     data={data.statusSummary}
-                    selectedStatus={selectedStatus}
-                    onSelect={setSelectedStatus}
+                    selectedStatusKey={selectedStatusKey}
+                    onSelect={(item) => setSelectedStatusKey(item)}
                   />
                 )}
               </Box>
@@ -372,9 +376,9 @@ export function ReconciliationRunnerPage() {
           </Paper>
 
           {/* Details */}
-          {selectedStatus && (
+          {selectedStatusKey && (
             <ReconciliationDetailTable
-              status={selectedStatus}
+              status={selectedStatusKey}
               rows={detailRows}
             />
           )}

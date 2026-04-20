@@ -155,7 +155,19 @@ export interface RefreshReconciliationResponse {
   status: ReconciliationSystemStatus;
 }
 
-export interface ReconciliationStatusSummaryItem{
+
+export type ReconciliationStatusKey =
+  | "T"
+  | "C"
+  | "C0"
+  | "O"
+  | "R"
+  | "WA"
+  | "WR"
+  | "E";
+
+export interface ReconciliationStatusSummaryItem {
+  key: ReconciliationStatusKey;
   label: string;
-  value: number;
+  count: number;
 }

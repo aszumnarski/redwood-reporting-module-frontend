@@ -8,15 +8,12 @@ import {
   } from "recharts";
   import { Paper, Typography, Box } from "@mui/material";
   
-  interface StatusSummaryItem {
-    label: string;
-    value: number;
-  }
-  
+  import type { ReconciliationStatusSummaryItem } from "../types";
+  import type { ReconciliationStatusKey } from "../types";
   interface Props {
-    data: StatusSummaryItem[];
-    selectedStatus: string | null;
-    onSelect: (status: string) => void;
+    data: ReconciliationStatusSummaryItem[];
+    selectedStatusKey: ReconciliationStatusKey | null;
+    onSelect: (key: ReconciliationStatusKey) => void;
   }
   
   function StatusBar(props: any) {
@@ -49,7 +46,7 @@ import {
   
   export function StatusSummaryChart({
     data,
-    selectedStatus,
+    selectedStatusKey,
     onSelect,
   }: Props) {
     return (
@@ -88,7 +85,7 @@ import {
                 shape={(barProps) => (
                   <StatusBar
                     {...barProps}
-                    selectedStatus={selectedStatus}
+                    selectedStatus={selectedStatusKey}
                     onSelect={onSelect}
                   />
                 )}

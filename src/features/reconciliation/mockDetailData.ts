@@ -48,16 +48,18 @@ export const KPI_DATA = {
   successfullyGenerated: 98,
 };
 
+
 export const STATUS_SUMMARY_DATA: ReconciliationStatusSummaryItem[] = [
-  { label: "Total reconciliations", value: 120 },
-  { label: "Certified", value: 72 },
-  { label: "Certified (no open items)", value: 15 },
-  { label: "Open", value: 18 },
-  { label: "Rejected", value: 5 },
-  { label: "With approver", value: 6 },
-  { label: "With reviewer", value: 3 },
-  { label: "Error", value: 1 },
+  { key: "T", label: "Total reconciliations", count: 120 },
+  { key: "C",     label: "Certified", count: 72 },
+  { key: "C0",    label: "Certified (no open items)", count: 15 },
+  { key: "O",     label: "Open", count: 18 },
+  { key: "R",     label: "Rejected", count: 5 },
+  { key: "WA",    label: "With approver", count: 6 },
+  { key: "WR",    label: "With reviewer", count: 3 },
+  { key: "E",     label: "Error", count: 1 },
 ];
+
 
 
 export const MOCK_SYSTEM_STATUS : ReconciliationCompanySystemStatus[] = [
