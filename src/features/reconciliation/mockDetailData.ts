@@ -1,10 +1,9 @@
-import type { ReconciliationRow } from "./types";
+import type { ReconciliationRow,ReconciliationCompanySystemStatus, ReconciliationStatusSummaryItem } from "./types";
 
-export const MOCK_RECONCILIATION_ROWS: Record<
-  string,
+export const MOCK_RECONCILIATION_ROWS: 
   ReconciliationRow[]
-> = {
-  "Total reconciliations": [
+ = 
+  [
     {
       jobId: "JOB-1001",
       jobStatus: "COMPLETED",
@@ -42,5 +41,29 @@ export const MOCK_RECONCILIATION_ROWS: Record<
       unanalyzedBalance: "25000",
       requestId: "REQ-01",
     },
-  ],
+  ];
+
+export const KPI_DATA = {
+  inScope: 120,
+  successfullyGenerated: 98,
 };
+
+export const STATUS_SUMMARY_DATA: ReconciliationStatusSummaryItem[] = [
+  { label: "Total reconciliations", value: 120 },
+  { label: "Certified", value: 72 },
+  { label: "Certified (no open items)", value: 15 },
+  { label: "Open", value: 18 },
+  { label: "Rejected", value: 5 },
+  { label: "With approver", value: 6 },
+  { label: "With reviewer", value: 3 },
+  { label: "Error", value: 1 },
+];
+
+
+export const MOCK_SYSTEM_STATUS : ReconciliationCompanySystemStatus[] = [
+  {
+    companyCode: "7092",
+    status: "READY",
+    generatedAt: "2026-04-01T09:12:00Z",
+  },
+];

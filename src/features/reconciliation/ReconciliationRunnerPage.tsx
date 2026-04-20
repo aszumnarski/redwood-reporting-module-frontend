@@ -8,59 +8,208 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   MenuItem,
+  CircularProgress,
 } from "@mui/material";
 
-import { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+} from "@mui/material";
 
-import { KPI_DATA, STATUS_SUMMARY_DATA } from "./mockData";
+import { Alert } from "@mui/material";
 
-import { ReconciliationDetailTable } from "./components/ReconciliationDetailTable";
-import { MOCK_RECONCILIATION_ROWS } from "./mockDetailData";
+import { useEffect, useState } from "react";
 
-import { StatusSummaryChart } from "./components/StatusSummaryChart";
+import {
+  fetchReconciliationData,
+  requestReconciliationRefresh,
+} from "../../api/reconciliation.api";
 
-import { DonutChart } from "./components/DonutChart";
+import type {
+  FetchReconciliationResponse,
+  FetchReconciliationParams,
+  ReconciliationRow,
+} from "../reconciliation/types";
 
 import { StatusSummaryTable } from "./components/StatusSummaryTable";
+import { StatusSummaryChart } from "./components/StatusSummaryChart";
+import { ReconciliationDetailTable } from "./components/ReconciliationDetailTable";
+import { DonutChart } from "./components/DonutChart";
 
-function getCurrentYearMonth() {
+import { resolvePrimaryButtonState } from "./logic/primaryButtonStateResolver";
+
+function getCurrentYearMonth(): string {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  return `${year}/${month}`;
+  return `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function splitYearMonth(yearMonth: string) {
+function toFetchParams(
+  yearMonth: string,
+  companyCode: string
+): FetchReconciliationParams {
   const [year, month] = yearMonth.split("/");
+
   return {
     fiscalYear: year,
-    period: `P${month}`,
+    fiscalPeriod: `P${month}`,
+    companyCode: companyCode === "All" ? undefined : companyCode,
   };
 }
 
-export function ReportRunnerPage() {
-  const [companyCode, setCompanyCode] = useState("All");
-  const [yearMonth, setYearMonth] = useState(getCurrentYearMonth());
-  const [viewMode, setViewMode] = useState<"table" | "chart">("table");
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(
-    STATUS_SUMMARY_DATA[0]?.label ?? null
-  );
+// -------------------------------
+// Component
+// -------------------------------
 
-  const [submittedCriteria, setSubmittedCriteria] = useState<{
-    companyCode: string;
-    yearMonth: string;
-    reportDate: string;
-  } | null>(null);
+export function ReconciliationRunnerPage() {
+  // -------- Filter state (what user selects) --------
+  const [companyCode, setCompanyCode] = useState<string>("All");
+  const [yearMonth, setYearMonth] = useState<string>(getCurrentYearMonth());
+  const [viewMode, setViewMode] = useState<"table" | "chart">("table");
+
+  // -------- API state (single source of truth) --------
+  const [data, setData] = useState<FetchReconciliationResponse | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // -------- UI-only state --------
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [refreshSubmitting, setRefreshSubmitting] = useState(false);
+  const [confirmRefreshOpen, setConfirmRefreshOpen] = useState(false);
 
   useEffect(() => {
-    setSubmittedCriteria({
-      companyCode: "All",
-      yearMonth: getCurrentYearMonth(),
-      reportDate: new Date().toLocaleDateString(),
-    });
+    if (data && data.statusSummary.length > 0 && selectedStatus === null) {
+      setSelectedStatus(data.statusSummary[0].label);
+    }
+  }, [data, selectedStatus]);
 
-    setSelectedStatus(STATUS_SUMMARY_DATA[0]?.label ?? null);
+  // -------------------------------
+  // Initial load (optional)
+  // -------------------------------
+  useEffect(() => {
+    runReport(); // auto-run for current period
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // -------------------------------
+  // Actions
+  // -------------------------------
+
+  function openConfirmRefreshModal() {
+    setConfirmRefreshOpen(true);
+  }
+
+  function closeConfirmRefreshModal() {
+    setConfirmRefreshOpen(false);
+  }
+
+  async function runReport() {
+    const params = toFetchParams(yearMonth, companyCode);
+    setSelectedStatus(null);
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetchReconciliationData(params);
+
+      setData(response);
+
+      // reset selection when new data arrives
+      setSelectedStatus(null);
+    } catch (e) {
+      setError("Failed to load reconciliation data");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function filterRowsByStatus(
+    rows: ReconciliationRow[],
+    selectedStatus: string
+  ): ReconciliationRow[] {
+    switch (selectedStatus) {
+      case "Total reconciliations":
+        return rows;
+
+      case "Certified":
+        return rows.filter((row) => row.certificationStatus === "Certified");
+
+      case "Certified (no open items)":
+        return rows.filter(
+          (row) =>
+            row.certificationStatus === "Certified" &&
+            Number(row.unanalyzedQuantity) === 0
+        );
+
+      case "Open":
+        return rows.filter((row) => row.certificationStatus === "Open");
+
+      case "Rejected":
+        return rows.filter((row) => row.certificationStatus === "Rejected");
+
+      case "With approver":
+        return rows.filter(
+          (row) =>
+            row.certificationStatus === "Open" &&
+            Boolean(row.approver) &&
+            !row.approverResponder
+        );
+
+      case "With reviewer":
+        return rows.filter(
+          (row) =>
+            row.certificationStatus === "Open" &&
+            Boolean(row.reviewer) &&
+            !row.reviewerResponder
+        );
+
+      case "Error":
+        return rows.filter((row) => row.jobStatus === "ERROR");
+
+      default:
+        return [];
+    }
+  }
+
+  const detailRows =
+    data && selectedStatus ? filterRowsByStatus(data.rows, selectedStatus) : [];
+
+  const selectedCompanySystemStatus =
+    !data || companyCode === "All"
+      ? undefined
+      : data.systemStatus.find((s) => s.companyCode === companyCode)?.status;
+
+  const shouldPoll = selectedCompanySystemStatus === "RUNNING";
+
+  const refreshRecommended = Boolean(
+    data && companyCode !== "All" && selectedCompanySystemStatus === "READY"
+  );
+
+  const primaryButtonState = resolvePrimaryButtonState({
+    isAllCompanies: companyCode === "All",
+    systemStatus: selectedCompanySystemStatus,
+    refreshRecommended,
+  });
+
+  useEffect(() => {
+    if (!shouldPoll) return;
+
+    const POLL_INTERVAL_MS = 5000; // 5 seconds
+
+    const intervalId = setInterval(() => {
+      runReport();
+    }, POLL_INTERVAL_MS);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [shouldPoll]);
+
+  // -------------------------------
+  // Render
+  // -------------------------------
 
   return (
     <Box>
@@ -68,13 +217,10 @@ export function ReportRunnerPage() {
         Reconciliation Status Dashboard
       </Typography>
 
-      <Paper
-        variant="outlined"
-        sx={{
-          p: 1.5,
-          mb: 3,
-        }}
-      >
+      {/* ==============================
+          Filters
+         ============================== */}
+      <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
         <Stack
           direction={{ xs: "column", md: "row" }}
           spacing={2}
@@ -87,13 +233,13 @@ export function ReportRunnerPage() {
             select
             label="Company Code"
             value={companyCode}
-            onChange={(e) => setCompanyCode(e.target.value)}
             size="small"
+            onChange={(e) => setCompanyCode(e.target.value)}
             sx={{ minWidth: 200 }}
           >
             <MenuItem value="All">All</MenuItem>
-            <MenuItem value="7092">7092</MenuItem>
-            <MenuItem value="7088">7088</MenuItem>
+            <MenuItem value="1000">1000</MenuItem>
+            <MenuItem value="2000">2000</MenuItem>
           </TextField>
 
           {/* Period */}
@@ -101,8 +247,8 @@ export function ReportRunnerPage() {
             select
             label="Period"
             value={yearMonth}
-            onChange={(e) => setYearMonth(e.target.value)}
             size="small"
+            onChange={(e) => setYearMonth(e.target.value)}
             sx={{ minWidth: 160 }}
           >
             <MenuItem value="2026/01">2026/01</MenuItem>
@@ -111,173 +257,182 @@ export function ReportRunnerPage() {
             <MenuItem value="2026/04">2026/04</MenuItem>
           </TextField>
 
-          {/* Run button */}
           <Button
             variant="contained"
             size="small"
-            onClick={() =>
-              setSubmittedCriteria({
-                companyCode,
-                yearMonth,
-                reportDate: new Date().toLocaleDateString(),
-              })
-            }
-            sx={{
-              height: 40, // aligns with TextField height
-              whiteSpace: "nowrap",
+            disabled={primaryButtonState.disabled}
+            title={primaryButtonState.tooltip}
+            onClick={() => {
+              if (primaryButtonState.action === "GET") {
+                runReport();
+              }
+
+              if (primaryButtonState.action === "REFRESH") {
+                if (primaryButtonState.requiresConfirmation) {
+                  openConfirmRefreshModal();
+                }
+              }
             }}
           >
-            Run report
+            {primaryButtonState.label}
           </Button>
+          {selectedCompanySystemStatus === "RUNNING" && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Reconciliation data refresh is currently running. The view will
+              update automatically once the refresh is complete.
+            </Alert>
+          )}
         </Stack>
       </Paper>
 
-      {submittedCriteria &&
-        (() => {
-          const { fiscalYear, period } = splitYearMonth(
-            submittedCriteria.yearMonth
-          );
-
-          return (
-            <Paper sx={{ p: 3, mt: 4 }} variant="outlined">
-              <Typography variant="h6" gutterBottom>
-                Selected report criteria
-              </Typography>
-
-              <Stack spacing={1}>
-                <Typography>
-                  <strong>Company Code:</strong> {submittedCriteria.companyCode}
-                </Typography>
-                <Typography>
-                  <strong>Fiscal Year:</strong> {fiscalYear}
-                </Typography>
-                <Typography>
-                  <strong>Period:</strong> {period}
-                </Typography>
-                <Typography>
-                  <strong>Report Date:</strong> {submittedCriteria.reportDate}
-                </Typography>
-              </Stack>
-            </Paper>
-          );
-        })()}
-
-      {submittedCriteria && (
-        <Paper sx={{ p: 3, mt: 4 }}>
-          <Typography variant="h6" gutterBottom>
-            Volume of templates generated
-          </Typography>
-
-          <Stack direction={{ xs: "column", md: "row" }} spacing={3}>
-            <Paper
-              sx={{ p: 3, flex: 1, textAlign: "center" }}
-              variant="outlined"
-            >
-              <Typography variant="h4" color="primary">
-                {KPI_DATA.inScope}
-              </Typography>
-              <Typography color="text.secondary">In scope</Typography>
-            </Paper>
-
-            <Paper
-              sx={{ p: 3, flex: 1, textAlign: "center" }}
-              variant="outlined"
-            >
-              <Typography variant="h4" color="success.main">
-                {KPI_DATA.successfullyGenerated}
-              </Typography>
-              <Typography color="text.secondary">
-                Successfully generated
-              </Typography>
-            </Paper>
-          </Stack>
-        </Paper>
+      {/* ==============================
+          Loading / Error
+         ============================== */}
+      {loading && (
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+          <CircularProgress />
+        </Box>
       )}
-      {submittedCriteria && (
-        <Paper sx={{ p: 3, mt: 4 }}>
-          {/* Header */}
 
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Status summary
-          </Typography>
+      {error && (
+        <Typography color="error" sx={{ mt: 2 }}>
+          {error}
+        </Typography>
+      )}
 
-          {/* Content */}
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: { xs: "column", md: "row" },
-              gap: 3,
-              alignItems: "flex-start",
-            }}
-          >
-            {/* LEFT SIDE */}
-            <Box sx={{ flex: 2, minWidth: 0 }}>
-              {/* View toggle belongs here */}
-              <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-end" }}>
-                <ToggleButtonGroup
-                  value={viewMode}
-                  exclusive
-                  size="small"
-                  onChange={(_, value) => value && setViewMode(value)}
-                >
-                  <ToggleButton value="table">Show table</ToggleButton>
-                  <ToggleButton value="chart">Show chart</ToggleButton>
-                </ToggleButtonGroup>
-              </Box>
+      {/* ==============================
+          Main content
+         ============================== */}
+      {data && (
+        <>
+          {/* Status summary */}
+          <Paper variant="outlined" sx={{ p: 3, mt: 4 }}>
+            <Typography variant="h6" gutterBottom>
+              Status summary
+            </Typography>
 
-              {/* Content */}
-
-              {viewMode === "table" && (
-                <StatusSummaryTable
-                  data={STATUS_SUMMARY_DATA}
-                  selectedStatus={selectedStatus}
-                  onSelect={setSelectedStatus}
-                />
-              )}
-
-              {viewMode === "chart" && (
-                <StatusSummaryChart
-                  data={STATUS_SUMMARY_DATA}
-                  selectedStatus={selectedStatus}
-                  onSelect={setSelectedStatus}
-                />
-              )}
-            </Box>
-
-            {/* RIGHT SIDE — DONUTS */}
             <Box
               sx={{
-                flex: 1,
                 display: "flex",
-                flexDirection: "column",
-                gap: 2,
-
-                position: "sticky",
-                top: 0,
+                flexDirection: { xs: "column", md: "row" },
+                gap: 3,
               }}
             >
-              <DonutChart
-                label="Certification overview"
-                value={68}
-                color="#1976d2"
-              />
+              {/* LEFT */}
+              <Box sx={{ flex: 2 }}>
+                <Box
+                  sx={{
+                    mb: 2,
+                    display: "flex",
+                    justifyContent: "flex-end",
+                  }}
+                >
+                  <ToggleButtonGroup
+                    value={viewMode}
+                    exclusive
+                    size="small"
+                    onChange={(_, value) => value && setViewMode(value)}
+                  >
+                    <ToggleButton value="table">Table</ToggleButton>
+                    <ToggleButton value="chart">Chart</ToggleButton>
+                  </ToggleButtonGroup>
+                </Box>
 
-              <DonutChart
-                label="Due date overview"
-                value={82}
-                color="#2e7d32"
-              />
+                {viewMode === "table" && (
+                  <StatusSummaryTable
+                    data={data.statusSummary}
+                    selectedStatus={selectedStatus}
+                    onSelect={setSelectedStatus}
+                  />
+                )}
+
+                {viewMode === "chart" && (
+                  <StatusSummaryChart
+                    data={data.statusSummary}
+                    selectedStatus={selectedStatus}
+                    onSelect={setSelectedStatus}
+                  />
+                )}
+              </Box>
+
+              {/* RIGHT */}
+              <Box sx={{ flex: 1 }}>
+                <DonutChart
+                  label="Certification overview"
+                  value={68}
+                  color="#1976d2"
+                />
+                <DonutChart
+                  label="Due date overview"
+                  value={82}
+                  color="#2e7d32"
+                />
+              </Box>
             </Box>
-          </Box>
-        </Paper>
+          </Paper>
+
+          {/* Details */}
+          {selectedStatus && (
+            <ReconciliationDetailTable
+              status={selectedStatus}
+              rows={detailRows}
+            />
+          )}
+        </>
       )}
 
-      {selectedStatus && (
-        <ReconciliationDetailTable
-          status={selectedStatus}
-          rows={MOCK_RECONCILIATION_ROWS[selectedStatus] ?? []}
-        />
-      )}
+      <Dialog
+        open={confirmRefreshOpen}
+        onClose={closeConfirmRefreshModal}
+        aria-labelledby="confirm-refresh-title"
+        aria-describedby="confirm-refresh-description"
+      >
+        <DialogTitle id="confirm-refresh-title">
+          Refresh reconciliation data?
+        </DialogTitle>
+
+        <DialogContent>
+          <DialogContentText id="confirm-refresh-description">
+            This operation may take up to <strong>10 minutes</strong>.
+            <br />
+            <br />
+            During this time, reconciliation data will be recalculated and
+            refresh will be unavailable for this company.
+          </DialogContentText>
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={closeConfirmRefreshModal} color="inherit">
+            Cancel
+          </Button>
+
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={async () => {
+              if (!data) return;
+              setRefreshSubmitting(true);
+              closeConfirmRefreshModal();
+
+              try {
+                await requestReconciliationRefresh({
+                  fiscalYear: data.period.fiscalYear,
+                  fiscalPeriod: data.period.fiscalPeriod,
+                  companyCode,
+                });
+
+                runReport();
+              } catch (e) {
+                console.error("Failed to start refresh", e);
+              } finally {
+                setRefreshSubmitting(false);
+              }
+            }}
+          >
+            Refresh data
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
