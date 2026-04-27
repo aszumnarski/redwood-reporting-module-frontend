@@ -9,29 +9,29 @@ import {
   ToggleButtonGroup,
   MenuItem,
   CircularProgress,
-} from "@mui/material";
-
-import {
   Dialog,
   DialogTitle,
   DialogContent,
   DialogContentText,
   DialogActions,
+  Alert,
+  Checkbox,
+  ListItemText,
 } from "@mui/material";
 
-import { Alert } from "@mui/material";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import IconButton from "@mui/material/IconButton";
 
-import { useEffect, useState } from "react";
+import { useApplicationInfo } from "./hooks/useApplicationInfo";
+import { AboutDialog } from "./components/AboutDialog";
 
-import {
-  fetchReconciliationData,
-  requestReconciliationRefresh,
-} from "../../api/reconciliation.api";
+import { useEffect, useState, useMemo } from "react";
+
+import { fetchReconciliationData } from "../../api/reconciliation.api";
 
 import type {
   FetchReconciliationResponse,
   FetchReconciliationParams,
-  ReconciliationRow,
   ReconciliationStatusKey,
 } from "../reconciliation/types";
 
@@ -41,22 +41,23 @@ import { ReconciliationDetailTable } from "./components/ReconciliationDetailTabl
 import { DonutChart } from "./components/DonutChart";
 
 import { resolvePrimaryButtonState } from "./logic/primaryButtonStateResolver";
+import { useReconciliationRefresh } from "./hooks/useReconciliationRefresh";
+import { useReconciliationPolling } from "./hooks/useReconciliationPolling";
+import { useReconciliationViewState } from "./hooks/useReconciliationViewState";
+import { useReconciliationMetadata } from "./hooks/useReconciliationMetadata";
 
-function getCurrentYearMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
+import { resolveCompanyScope } from "./utils/companyScope"
 
 function toFetchParams(
   yearMonth: string,
-  companyCode: string
+  companyCodes?: string[]
 ): FetchReconciliationParams {
   const [year, month] = yearMonth.split("/");
 
   return {
     fiscalYear: year,
-    fiscalPeriod: `P${month}`,
-    companyCode: companyCode === "All" ? undefined : companyCode,
+    fiscalPeriod: month,
+    companyCodes,
   };
 }
 
@@ -66,20 +67,79 @@ function toFetchParams(
 
 export function ReconciliationRunnerPage() {
   // -------- Filter state (what user selects) --------
-  const [companyCode, setCompanyCode] = useState<string>("All");
-  const [yearMonth, setYearMonth] = useState<string>(getCurrentYearMonth());
+  const [selectedCompanyCodes, setSelectedCompanyCodes] = useState<string[]>(
+    []
+  );
+
+  const [yearMonth, setYearMonth] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "chart">("table");
 
-  // -------- API state (single source of truth) --------
+  // -------- API state --------
   const [data, setData] = useState<FetchReconciliationResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  const {
+    data: metadata,
+    loading: metadataLoading,
+    error: metadataError,
+  } = useReconciliationMetadata();
+
   // -------- UI-only state --------
 
-  const [selectedStatusKey, setSelectedStatusKey] = useState<ReconciliationStatusKey | null>(null);
-  const [refreshSubmitting, setRefreshSubmitting] = useState(false);
+  const [selectedStatusKey, setSelectedStatusKey] =
+    useState<ReconciliationStatusKey | null>(null);
+
   const [confirmRefreshOpen, setConfirmRefreshOpen] = useState(false);
+
+  const { isSubmitting, submitRefresh } = useReconciliationRefresh();
+
+  const availableCompanyCodes = metadata?.availableCompanyCodes ?? [];
+  const availablePeriods = metadata?.availablePeriods ?? [];
+  const defaultCompanyCodes = metadata?.defaultCompanyCodes ?? [];
+  const defaultPeriod = metadata?.defaultPeriod;
+
+  const { info: appInfo } = useApplicationInfo();
+  const [aboutOpen, setAboutOpen] = useState(false);
+
+  const isRefreshSubmittingForSelectedCompanies = selectedCompanyCodes.some(
+    (code) => isSubmitting(code)
+  );
+
+  const statusLabelByKey = useMemo(() => {
+    if (!data) return {};
+
+    return Object.fromEntries(data.statusSummary.map((s) => [s.key, s.label]));
+  }, [data]);
+
+  const selectedStatusLabel =
+    selectedStatusKey != null ? statusLabelByKey[selectedStatusKey] : undefined;
+
+  const {
+    selectedCompanySystemStatus,
+    refreshRecommended,
+    detailRows,
+  } = useReconciliationViewState({
+    data,
+    selectedCompanyCodes,
+    selectedStatusKey,
+  });
+
+const effectiveCompanyCodes = resolveCompanyScope(
+  selectedCompanyCodes,
+  availableCompanyCodes
+);
+
+
+  const primaryButtonState = resolvePrimaryButtonState({
+    isAllCompanies: effectiveCompanyCodes === undefined,
+    systemStatus: selectedCompanySystemStatus,
+    refreshRecommended,
+  });
+
+  // -------------------------------
+  // Effects
+  // -------------------------------
 
   useEffect(() => {
     if (data && data.statusSummary.length > 0 && selectedStatusKey === null) {
@@ -87,139 +147,115 @@ export function ReconciliationRunnerPage() {
     }
   }, [data, selectedStatusKey]);
 
-  // -------------------------------
-  // Initial load (optional)
-  // -------------------------------
   useEffect(() => {
-    runReport(); // auto-run for current period
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (selectedCompanyCodes.length > 0) return;
+    if (availableCompanyCodes.length === 0) return;
+
+    // Prefer backend-defined defaults if present
+    const initialSelection =
+      defaultCompanyCodes.length > 0
+        ? defaultCompanyCodes
+        : availableCompanyCodes;
+
+    setSelectedCompanyCodes(initialSelection);
+  }, [availableCompanyCodes, defaultCompanyCodes, selectedCompanyCodes]);
+
+  useEffect(() => {
+    console.log("period defaults", defaultPeriod);
+    if (!yearMonth && defaultPeriod) {
+      const value = `${
+        defaultPeriod.fiscalYear
+      }/${defaultPeriod.fiscalPeriod.replace("P", "")}`;
+      setYearMonth(value);
+    }
+  }, [defaultPeriod, yearMonth]);
+
+  useEffect(() => {
+    console.log("effect check", { yearMonth, selectedCompanyCodes });
+    if (yearMonth && selectedCompanyCodes.length > 0) {
+      runReport();
+    }
+  }, [yearMonth, selectedCompanyCodes]);
 
   // -------------------------------
   // Actions
   // -------------------------------
 
-  function openConfirmRefreshModal() {
-    setConfirmRefreshOpen(true);
-  }
-
-  function closeConfirmRefreshModal() {
-    setConfirmRefreshOpen(false);
-  }
-
   async function runReport() {
-    const params = toFetchParams(yearMonth, companyCode);
+    console.log("runReport called", {
+      yearMonth,
+      selectedCompanyCodes,
+      effectiveCompanyCodes,
+    });
+
+    if (!yearMonth) return;
+
+    const params = toFetchParams(yearMonth, effectiveCompanyCodes);
+
     setSelectedStatusKey(null);
     setLoading(true);
     setError(null);
 
     try {
       const response = await fetchReconciliationData(params);
-
       setData(response);
-
-      // reset selection when new data arrives
-      setSelectedStatusKey(null);
     } catch (e) {
-      setError("Failed to load reconciliation data");
+      setError("Failed to load reconciliation data: " + e);
     } finally {
       setLoading(false);
     }
   }
 
-  console.log("selectedStatusKey:", selectedStatusKey);
+  const isSingleCompanyUser = availableCompanyCodes.length === 1;
 
-  function filterRowsByStatus(
-    rows: ReconciliationRow[],
-    selectedStatusKey: string
-  ): ReconciliationRow[] {
-    switch (selectedStatusKey) {
-      case "T":
-        return rows;
+  const isSomeCompaniesSelected =
+    selectedCompanyCodes.length > 0 &&
+    selectedCompanyCodes.length < availableCompanyCodes.length;
 
-      case "C":
-        return rows.filter((row) => row.certificationStatus === "Certified");
-
-      case "C0":
-        return rows.filter(
-          (row) =>
-            row.certificationStatus === "Certified" &&
-            Number(row.unanalyzedQuantity) === 0
-        );
-
-      case "O":
-        return rows.filter((row) => row.certificationStatus === "Open");
-
-      case "R":
-        return rows.filter((row) => row.certificationStatus === "Rejected");
-
-      case "WA":
-        return rows.filter(
-          (row) =>
-            row.certificationStatus === "Open" &&
-            Boolean(row.approver) &&
-            !row.approverResponder
-        );
-
-      case "WR":
-        return rows.filter(
-          (row) =>
-            row.certificationStatus === "Open" &&
-            Boolean(row.reviewer) &&
-            !row.reviewerResponder
-        );
-
-      case "E":
-        return rows.filter((row) => row.jobStatus === "ERROR");
-
-      default:
-        return [];
-    }
-  }
-
-  const detailRows =
-    data && selectedStatusKey ? filterRowsByStatus(data.rows, selectedStatusKey) : [];
-
-  const selectedCompanySystemStatus =
-    !data || companyCode === "All"
-      ? undefined
-      : data.systemStatus.find((s) => s.companyCode === companyCode)?.status;
+  // -------------------------------
+  // Polling when backend is RUNNING
+  // -------------------------------
 
   const shouldPoll = selectedCompanySystemStatus === "RUNNING";
 
-  const refreshRecommended = Boolean(
-    data && companyCode !== "All" && selectedCompanySystemStatus === "READY"
-  );
-
-  const primaryButtonState = resolvePrimaryButtonState({
-    isAllCompanies: companyCode === "All",
-    systemStatus: selectedCompanySystemStatus,
-    refreshRecommended,
-  });
-
-  useEffect(() => {
-    if (!shouldPoll) return;
-
-    const POLL_INTERVAL_MS = 5000; // 5 seconds
-
-    const intervalId = setInterval(() => {
-      runReport();
-    }, POLL_INTERVAL_MS);
-
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [shouldPoll]);
+  useReconciliationPolling(shouldPoll, runReport, 5000);
 
   // -------------------------------
   // Render
   // -------------------------------
 
+  if (metadataLoading) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (metadataError) {
+    return (
+      <Typography color="error">
+        Failed to load reconciliation metadata
+      </Typography>
+    );
+  }
+
   return (
     <Box>
-      <Typography variant="h5" gutterBottom>
-        Reconciliation Status Dashboard
-      </Typography>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          mb: 2,
+        }}
+      >
+        <Typography variant="h5">Reconciliation Status Dashboard</Typography>
+
+        <IconButton onClick={() => setAboutOpen(true)}>
+          <InfoOutlinedIcon />
+        </IconButton>
+      </Box>
 
       {/* ==============================
           Filters
@@ -233,17 +269,92 @@ export function ReconciliationRunnerPage() {
           }}
         >
           {/* Company Code */}
+
           <TextField
             select
-            label="Company Code"
-            value={companyCode}
+            label="Company Codes"
             size="small"
-            onChange={(e) => setCompanyCode(e.target.value)}
-            sx={{ minWidth: 200 }}
+            sx={{ minWidth: 320 }}
+            value={selectedCompanyCodes}
+            disabled={isSingleCompanyUser}
+            slotProps={{
+              select: {
+                multiple: true,
+                renderValue: () =>
+                  (effectiveCompanyCodes === undefined)
+                    ? "All companies"
+                    : selectedCompanyCodes.join(", "),
+              },
+            }}
           >
-            <MenuItem value="All">All</MenuItem>
-            <MenuItem value="1000">1000</MenuItem>
-            <MenuItem value="2000">2000</MenuItem>
+            {!isSingleCompanyUser && (
+              <MenuItem disableRipple>
+                <Checkbox
+                  checked={effectiveCompanyCodes === undefined}
+                  indeterminate={isSomeCompaniesSelected}
+                  onClick={(e) => {
+                    e.stopPropagation();
+
+                    // Only act when not already all selected
+                    if (!effectiveCompanyCodes === undefined) {
+                      setSelectedCompanyCodes(availableCompanyCodes);
+                    }
+                  }}
+                />
+
+                <ListItemText primary="All companies" />
+              </MenuItem>
+            )}
+
+            {availableCompanyCodes.map((code) => {
+              const isChecked = selectedCompanyCodes.includes(code);
+              const isOnlySelected =
+                selectedCompanyCodes.length === 1 && isChecked;
+
+              return (
+                <MenuItem key={code}>
+                  <Checkbox
+                    checked={isChecked}
+                    onClick={(e) => {
+                      e.stopPropagation();
+
+                      if (isChecked && selectedCompanyCodes.length === 1) {
+                        // prevent empty selection
+                        return;
+                      }
+
+                      if (isChecked) {
+                        setSelectedCompanyCodes(
+                          selectedCompanyCodes.filter((c) => c !== code)
+                        );
+                      } else {
+                        setSelectedCompanyCodes([
+                          ...selectedCompanyCodes,
+                          code,
+                        ]);
+                      }
+                    }}
+                  />
+
+                  <ListItemText primary={code} />
+
+                  {/* ONLY action */}
+                  {!isSingleCompanyUser && !isOnlySelected && (
+                    <Box sx={{ ml: "auto" }}>
+                      <Button
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation(); // ✅ critical
+                          setSelectedCompanyCodes([code]);
+                        }}
+                      >
+                        Only
+                      </Button>
+                    </Box>
+                  )}
+                </MenuItem>
+              );
+            })}
           </TextField>
 
           {/* Period */}
@@ -255,17 +366,31 @@ export function ReconciliationRunnerPage() {
             onChange={(e) => setYearMonth(e.target.value)}
             sx={{ minWidth: 160 }}
           >
-            <MenuItem value="2026/01">2026/01</MenuItem>
-            <MenuItem value="2026/02">2026/02</MenuItem>
-            <MenuItem value="2026/03">2026/03</MenuItem>
-            <MenuItem value="2026/04">2026/04</MenuItem>
+            {availablePeriods.map((p) => {
+              const value = `${p.fiscalYear}/${p.fiscalPeriod.replace(
+                "P",
+                ""
+              )}`;
+              return (
+                <MenuItem key={value} value={value}>
+                  {value}
+                </MenuItem>
+              );
+            })}
           </TextField>
 
           <Button
             variant="contained"
             size="small"
-            disabled={primaryButtonState.disabled}
-            title={primaryButtonState.tooltip}
+            disabled={
+              primaryButtonState.disabled ||
+              isRefreshSubmittingForSelectedCompanies
+            }
+            title={
+              isRefreshSubmittingForSelectedCompanies
+                ? "Starting refresh…"
+                : primaryButtonState.tooltip
+            }
             onClick={() => {
               if (primaryButtonState.action === "GET") {
                 runReport();
@@ -273,21 +398,24 @@ export function ReconciliationRunnerPage() {
 
               if (primaryButtonState.action === "REFRESH") {
                 if (primaryButtonState.requiresConfirmation) {
-                  openConfirmRefreshModal();
+                  setConfirmRefreshOpen(true);
                 }
               }
             }}
           >
-            {primaryButtonState.label}
+            {isRefreshSubmittingForSelectedCompanies
+              ? "Starting refresh…"
+              : primaryButtonState.label}
           </Button>
-          {selectedCompanySystemStatus === "RUNNING" && (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              Reconciliation data refresh is currently running. The view will
-              update automatically once the refresh is complete.
-            </Alert>
-          )}
         </Stack>
       </Paper>
+
+      {selectedCompanySystemStatus === "RUNNING" && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Reconciliation data refresh is currently running. The view will update
+          automatically once the refresh is complete.
+        </Alert>
+      )}
 
       {/* ==============================
           Loading / Error
@@ -376,18 +504,26 @@ export function ReconciliationRunnerPage() {
           </Paper>
 
           {/* Details */}
-          {selectedStatusKey && (
+          {selectedStatusKey && selectedStatusLabel && (
             <ReconciliationDetailTable
-              status={selectedStatusKey}
+              status={selectedStatusLabel}
               rows={detailRows}
             />
           )}
         </>
       )}
 
+      {appInfo && (
+        <AboutDialog
+          open={aboutOpen}
+          onClose={() => setAboutOpen(false)}
+          info={appInfo}
+        />
+      )}
+
       <Dialog
         open={confirmRefreshOpen}
-        onClose={closeConfirmRefreshModal}
+        onClose={() => setConfirmRefreshOpen(false)}
         aria-labelledby="confirm-refresh-title"
         aria-describedby="confirm-refresh-description"
       >
@@ -406,31 +542,28 @@ export function ReconciliationRunnerPage() {
         </DialogContent>
 
         <DialogActions>
-          <Button onClick={closeConfirmRefreshModal} color="inherit">
+          <Button onClick={() => setConfirmRefreshOpen(false)} color="inherit">
             Cancel
           </Button>
 
           <Button
             variant="contained"
-            color="primary"
+            disabled={isRefreshSubmittingForSelectedCompanies}
             onClick={async () => {
-              if (!data) return;
-              setRefreshSubmitting(true);
-              closeConfirmRefreshModal();
+              if (!data || selectedCompanyCodes.length === 0) return;
 
-              try {
-                await requestReconciliationRefresh({
+              setConfirmRefreshOpen(false);
+
+              // Submit refresh for EACH selected company
+              for (const code of selectedCompanyCodes) {
+                await submitRefresh({
+                  companyCode: code,
                   fiscalYear: data.period.fiscalYear,
                   fiscalPeriod: data.period.fiscalPeriod,
-                  companyCode,
                 });
-
-                runReport();
-              } catch (e) {
-                console.error("Failed to start refresh", e);
-              } finally {
-                setRefreshSubmitting(false);
               }
+
+              runReport();
             }}
           >
             Refresh data

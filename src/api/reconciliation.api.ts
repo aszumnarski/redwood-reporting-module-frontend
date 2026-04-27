@@ -1,35 +1,145 @@
-import type { FetchReconciliationResponse,FetchReconciliationParams,RefreshReconciliationRequest,RefreshReconciliationResponse } from "../features/reconciliation/types";
+import type {
+  FetchReconciliationResponse,
+  FetchReconciliationParams,
+  RefreshReconciliationResponse,
+  ReconciliationMetadataResponse,
+  ApplicationInfo,
+} from "../features/reconciliation/types";
 
-import {
-  MOCK_RECONCILIATION_ROWS,
-  KPI_DATA,
-  STATUS_SUMMARY_DATA,
-  MOCK_SYSTEM_STATUS,
-} from "../features/reconciliation/mockDetailData";
+import.meta.env.MODE; // "development" | "production"
+import.meta.env.DEV; // boolean
+import.meta.env.PROD; // boolean
 
-export async function fetchReconciliationData(params: FetchReconciliationParams): Promise<FetchReconciliationResponse> {
-  return Promise.resolve({
-    period: {
-      fiscalYear: params.fiscalYear,
-      fiscalPeriod: params.fiscalPeriod,
+import { getApiBase } from "./apiBase";
+
+export async function fetchReconciliationData(
+  params: FetchReconciliationParams
+): Promise<FetchReconciliationResponse> {
+  
+  const query = new URLSearchParams();
+
+  if (params.companyCodes?.length) {
+    query.set("companyCodes", params.companyCodes.join(","));
+  }
+
+  const url =
+    `${getApiBase()}/reconciliation/${params.fiscalYear}/${params.fiscalPeriod}` +
+    (query.toString() ? `?${query.toString()}` : "");
+
+  const response = await fetch(url, {
+    method: "GET",
+    credentials: "same-origin",
+    headers: {
+      "Accept": "application/json",
     },
-    kpis: KPI_DATA,
-    statusSummary: STATUS_SUMMARY_DATA,
-    rows: MOCK_RECONCILIATION_ROWS,
-    systemStatus: MOCK_SYSTEM_STATUS,
   });
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch reconciliation data: ${response.status}`
+    );
+  }
+
+  return response.json();
 }
 
 
+
 export async function requestReconciliationRefresh(
-    request: RefreshReconciliationRequest
-  ): Promise<RefreshReconciliationResponse> {
-  
-    console.log("Refresh requested:", request);
-  
-    return Promise.resolve({
-      accepted: true,
-      status: "RUNNING",
-    });
+  fiscalYear: string,
+  fiscalPeriod: string,
+  companyCodes?: string[]
+): Promise<RefreshReconciliationResponse> {
+
+  const response = await fetch(
+    `${getApiBase()}/reconciliation/${fiscalYear}/${fiscalPeriod}/regenerate`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: companyCodes?.length
+        ? JSON.stringify({ companyCodes })
+        : null
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to request reconciliation refresh: ${response.status}`
+    );
   }
-  
+
+  return response.json();
+}
+
+
+
+export async function fetchReconciliationMetadata(): Promise<ReconciliationMetadataResponse> {
+  const response = await fetch(
+    `${getApiBase()}/reconciliation/metadata`,
+    {
+      method: "GET",
+      credentials: "same-origin",
+      headers: {
+        "Accept": "application/json",
+      },
+    }
+  );
+
+  if (import.meta.env.DEV) {
+    console.log(
+      "Backend debug:",
+      response.headers.get("X-Debug-Flow")
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch reconciliation metadata: ${response.status}`
+    );
+  }
+
+  return response.json();
+}
+
+export async function fetchApplicationInfo(): Promise<ApplicationInfo> {
+  const response = await fetch(`${getApiBase()}/system/info`, {
+    method: "GET",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (import.meta.env.DEV) {
+    console.log("Backend debug:", response.headers.get("X-Debug-Flow"));
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch application info: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+
+export async function fetchHealth(): Promise<void> {
+  const response = await fetch(`${getApiBase()}/health`, {
+    method: "GET",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Health check failed: ${response.status}`);
+  }
+
+  if (import.meta.env.DEV) {
+    console.log("Backend debug:", response.headers.get("X-Debug-Flow"));
+  }
+}

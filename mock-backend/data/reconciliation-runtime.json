@@ -1,0 +1,13 @@
+{
+    "kpis": {
+      "inScope": 120,
+      "successfullyGenerated": 98
+    },
+    "systemStatus": [
+      {
+        "companyCode": "7092",
+        "status": "READY",
+        "generatedAt": "2026-04-01T09:12:00Z"
+      }
+    ]
+  }

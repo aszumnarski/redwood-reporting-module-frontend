@@ -48,26 +48,6 @@ export interface ReconciliationRow {
 
 /**
  * --------------------------------
- * Aggregated reconciliation snapshot
- * (what the UI actually works with)
- * --------------------------------
- */
-export interface ReconciliationSnapshotRow {
-  companyCode: string;
-
-  analyzedBalance: number;
-  analyzedCount: number;
-
-  unanalyzedBalance: number;
-  unanalyzedCount: number;
-
-  reconciliationFinalized: boolean;
-
-  snapshotGeneratedAt: string;
-}
-
-/**
- * --------------------------------
  * Reconciliation period identifier
  * --------------------------------
  */
@@ -90,13 +70,12 @@ export interface ReconciliationKpis {
  * -------------------------------- */
 
 export interface FetchReconciliationParams extends ReconciliationPeriod {
-  companyCode?: string; // undefined = All
+  companyCodes?: string[]; // undefined = All
 }
 
 export interface RefreshReconciliationRequest extends ReconciliationPeriod {
   companyCode: string;
 }
-
 
 /* --------------------------------
  * Snapshot / refresh lifecycle state
@@ -118,43 +97,23 @@ export interface ReconciliationCompanySystemStatus {
  */
 
 export interface FetchReconciliationResponse {
+
   period: ReconciliationPeriod;
-
   kpis: ReconciliationKpis;
-
   statusSummary: ReconciliationStatusSummaryItem[];
-
   rows: ReconciliationRow[];
-
   systemStatus: ReconciliationCompanySystemStatus[];
 }
-
 
 /**
  * --------------------------------
  * API request / response: refresh
  * --------------------------------
  */
-export interface RefreshReconciliationRequest {
-  fiscalYear: string;
-  fiscalPeriod: string;
-  companyCode: string;
-}
-
-
-export interface FetchReconciliationParams {
-  fiscalYear: string;
-  fiscalPeriod: string;
-  companyCode?: string; // undefined = All
-}
-
-
-
 export interface RefreshReconciliationResponse {
   accepted: boolean;
   status: ReconciliationSystemStatus;
 }
-
 
 export type ReconciliationStatusKey =
   | "T"
@@ -171,3 +130,48 @@ export interface ReconciliationStatusSummaryItem {
   label: string;
   count: number;
 }
+
+export interface ReconciliationMetadataResponse {
+  availableCompanyCodes: string[];
+
+  defaultCompanyCodes: string[]; // usually all
+
+  availablePeriods: ReconciliationPeriod[];
+
+  defaultPeriod: ReconciliationPeriod;
+}
+
+export interface ApplicationInfo {
+  applicationName: string;
+
+  uiVersion: string;
+  uiBuildTime: string;
+
+  backendVersion: string;
+  backendBuildTime: string;
+
+  environment: string;
+
+  supportContact: string;
+}
+
+
+
+export const UI_INFO = {
+  applicationName: "Reconciliation Dashboard",
+  uiVersion: import.meta.env.VITE_APP_VERSION ?? "unknown",
+  uiBuildTime: import.meta.env.VITE_APP_BUILD_TIME ?? "unknown",
+};
+
+
+console.log("VITE_APP_VERSION", import.meta.env.VITE_APP_VERSION);
+console.log("VITE_APP_BUILD_TIME", import.meta.env.VITE_APP_BUILD_TI);
+
+
+export interface BackendInfo {
+  backendVersion: string;
+  backendBuildTime: string;
+  environment: string;
+  supportContact: string;
+}
+
