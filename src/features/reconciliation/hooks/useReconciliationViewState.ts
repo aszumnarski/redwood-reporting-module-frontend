@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useAggregatedStatusSummary } from "./useAggregatedStatusSummary";
 import type {
   FetchReconciliationResponse,
   ReconciliationRow,
@@ -8,7 +9,7 @@ import type {
 
 interface UseReconciliationViewStateParams {
   data: FetchReconciliationResponse | null;
-  selectedCompanyCodes: string[],
+  selectedCompanyCodes: string[];
   selectedStatusKey: ReconciliationStatusKey | null;
 }
 
@@ -21,29 +22,28 @@ export function useReconciliationViewState({
   selectedCompanyCodes,
   selectedStatusKey,
 }: UseReconciliationViewStateParams) {
-  
-  const selectedCompanySystemStatus = useMemo<ReconciliationSystemStatus | undefined>(() => {
+  const aggregatedStatusSummary = useAggregatedStatusSummary({
+    statusSummariesByCompany: data?.statusSummariesByCompany,
+    selectedCompanyCodes,
+  });
+
+  const selectedCompanySystemStatus = useMemo<
+    ReconciliationSystemStatus | undefined
+  >(() => {
     if (!data || selectedCompanyCodes.length === 0) {
       return undefined;
     }
-  
-    // If multiple companies selected, return RUNNING if ANY is running
+
     const statuses = data.systemStatus
-      .filter(s => selectedCompanyCodes.includes(s.companyCode))
-      .map(s => s.status);
-  
+      .filter((s) => selectedCompanyCodes.includes(s.companyCode))
+      .map((s) => s.status);
+
     if (statuses.includes("RUNNING")) return "RUNNING";
     if (statuses.includes("ERROR")) return "ERROR";
+    if (statuses.includes("STALE")) return "STALE";
+
     return "READY";
   }, [data, selectedCompanyCodes]);
-  
-  const refreshRecommended = useMemo(() => {
-    return (
-      selectedCompanyCodes.length > 0 &&
-      selectedCompanySystemStatus === "READY"
-    );
-  }, [selectedCompanyCodes, selectedCompanySystemStatus]);
-  
 
   const detailRows: ReconciliationRow[] = useMemo(() => {
     if (!data || !selectedStatusKey) return [];
@@ -52,8 +52,8 @@ export function useReconciliationViewState({
   }, [data, selectedStatusKey]);
 
   return {
+    aggregatedStatusSummary,
     selectedCompanySystemStatus,
-    refreshRecommended,
     detailRows,
   };
 }

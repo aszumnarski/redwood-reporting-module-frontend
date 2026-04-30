@@ -39,6 +39,7 @@ import { StatusSummaryTable } from "./components/StatusSummaryTable";
 import { StatusSummaryChart } from "./components/StatusSummaryChart";
 import { ReconciliationDetailTable } from "./components/ReconciliationDetailTable";
 import { DonutChart } from "./components/DonutChart";
+import { ReconciliationOverview } from "./components/ReconciliationOverview";
 
 import { resolvePrimaryButtonState } from "./logic/primaryButtonStateResolver";
 import { useReconciliationRefresh } from "./hooks/useReconciliationRefresh";
@@ -46,7 +47,7 @@ import { useReconciliationPolling } from "./hooks/useReconciliationPolling";
 import { useReconciliationViewState } from "./hooks/useReconciliationViewState";
 import { useReconciliationMetadata } from "./hooks/useReconciliationMetadata";
 
-import { resolveCompanyScope } from "./utils/companyScope"
+import { resolveCompanyScope } from "./utils/companyScope";
 
 function toFetchParams(
   yearMonth: string,
@@ -106,35 +107,30 @@ export function ReconciliationRunnerPage() {
     (code) => isSubmitting(code)
   );
 
-  const statusLabelByKey = useMemo(() => {
-    if (!data) return {};
+  const { aggregatedStatusSummary, selectedCompanySystemStatus, detailRows } =
+    useReconciliationViewState({
+      data,
+      selectedCompanyCodes,
+      selectedStatusKey,
+    });
 
-    return Object.fromEntries(data.statusSummary.map((s) => [s.key, s.label]));
-  }, [data]);
+  const statusLabelByKey = useMemo(() => {
+    return Object.fromEntries(
+      aggregatedStatusSummary.map((s) => [s.key, s.label])
+    );
+  }, [aggregatedStatusSummary]);
 
   const selectedStatusLabel =
     selectedStatusKey != null ? statusLabelByKey[selectedStatusKey] : undefined;
 
-  const {
-    selectedCompanySystemStatus,
-    refreshRecommended,
-    detailRows,
-  } = useReconciliationViewState({
-    data,
+  const effectiveCompanyCodes = resolveCompanyScope(
     selectedCompanyCodes,
-    selectedStatusKey,
-  });
-
-const effectiveCompanyCodes = resolveCompanyScope(
-  selectedCompanyCodes,
-  availableCompanyCodes
-);
-
+    availableCompanyCodes
+  );
 
   const primaryButtonState = resolvePrimaryButtonState({
     isAllCompanies: effectiveCompanyCodes === undefined,
     systemStatus: selectedCompanySystemStatus,
-    refreshRecommended,
   });
 
   // -------------------------------
@@ -142,10 +138,10 @@ const effectiveCompanyCodes = resolveCompanyScope(
   // -------------------------------
 
   useEffect(() => {
-    if (data && data.statusSummary.length > 0 && selectedStatusKey === null) {
-      setSelectedStatusKey(data.statusSummary[0].key);
+    if (aggregatedStatusSummary.length > 0 && selectedStatusKey === null) {
+      setSelectedStatusKey(aggregatedStatusSummary[0].key);
     }
-  }, [data, selectedStatusKey]);
+  }, [aggregatedStatusSummary, selectedStatusKey]);
 
   useEffect(() => {
     if (selectedCompanyCodes.length > 0) return;
@@ -281,7 +277,7 @@ const effectiveCompanyCodes = resolveCompanyScope(
               select: {
                 multiple: true,
                 renderValue: () =>
-                  (effectiveCompanyCodes === undefined)
+                  effectiveCompanyCodes === undefined
                     ? "All companies"
                     : selectedCompanyCodes.join(", "),
               },
@@ -296,7 +292,7 @@ const effectiveCompanyCodes = resolveCompanyScope(
                     e.stopPropagation();
 
                     // Only act when not already all selected
-                    if (!effectiveCompanyCodes === undefined) {
+                    if (effectiveCompanyCodes !== undefined) {
                       setSelectedCompanyCodes(availableCompanyCodes);
                     }
                   }}
@@ -435,8 +431,15 @@ const effectiveCompanyCodes = resolveCompanyScope(
       {/* ==============================
           Main content
          ============================== */}
+
       {data && (
         <>
+          {/* ✅ Overview */}
+          <ReconciliationOverview
+            kpis={data.kpis}
+            systemStatus={selectedCompanySystemStatus}
+          />
+
           {/* Status summary */}
           <Paper variant="outlined" sx={{ p: 3, mt: 4 }}>
             <Typography variant="h6" gutterBottom>
@@ -472,7 +475,7 @@ const effectiveCompanyCodes = resolveCompanyScope(
 
                 {viewMode === "table" && (
                   <StatusSummaryTable
-                    data={data.statusSummary}
+                    data={aggregatedStatusSummary}
                     selectedStatusKey={selectedStatusKey}
                     onSelect={(item) => setSelectedStatusKey(item)}
                   />
@@ -480,7 +483,7 @@ const effectiveCompanyCodes = resolveCompanyScope(
 
                 {viewMode === "chart" && (
                   <StatusSummaryChart
-                    data={data.statusSummary}
+                    data={aggregatedStatusSummary}
                     selectedStatusKey={selectedStatusKey}
                     onSelect={(item) => setSelectedStatusKey(item)}
                   />

@@ -81,7 +81,11 @@ export interface RefreshReconciliationRequest extends ReconciliationPeriod {
  * Snapshot / refresh lifecycle state
  * (technical)
  * -------------------------------- */
-export type ReconciliationSystemStatus = "READY" | "RUNNING" | "ERROR";
+export type ReconciliationSystemStatus =
+  | "READY"
+  | "RUNNING"
+  | "ERROR"
+  | "STALE";
 
 export interface ReconciliationCompanySystemStatus {
   companyCode: string;
@@ -97,12 +101,16 @@ export interface ReconciliationCompanySystemStatus {
  */
 
 export interface FetchReconciliationResponse {
-
   period: ReconciliationPeriod;
   kpis: ReconciliationKpis;
-  statusSummary: ReconciliationStatusSummaryItem[];
+  statusSummariesByCompany: ReconciliationCompanyStatusSummary[];
   rows: ReconciliationRow[];
   systemStatus: ReconciliationCompanySystemStatus[];
+}
+
+export interface ReconciliationCompanyStatusSummary {
+  companyCode: string;
+  summary: ReconciliationStatusSummaryItem[];
 }
 
 /**
@@ -155,18 +163,14 @@ export interface ApplicationInfo {
   supportContact: string;
 }
 
-
-
 export const UI_INFO = {
   applicationName: "Reconciliation Dashboard",
   uiVersion: import.meta.env.VITE_APP_VERSION ?? "unknown",
   uiBuildTime: import.meta.env.VITE_APP_BUILD_TIME ?? "unknown",
 };
 
-
 console.log("VITE_APP_VERSION", import.meta.env.VITE_APP_VERSION);
 console.log("VITE_APP_BUILD_TIME", import.meta.env.VITE_APP_BUILD_TI);
-
 
 export interface BackendInfo {
   backendVersion: string;
@@ -174,4 +178,3 @@ export interface BackendInfo {
   environment: string;
   supportContact: string;
 }
-
