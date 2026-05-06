@@ -13,10 +13,6 @@ interface UseReconciliationViewStateParams {
   selectedStatusKey: ReconciliationStatusKey | null;
 }
 
-/**
- * Encapsulates all reconciliation-specific view derivation logic.
- * This hook is PURE: no side effects, no API calls, no UI state.
- */
 export function useReconciliationViewState({
   data,
   selectedCompanyCodes,
@@ -26,6 +22,20 @@ export function useReconciliationViewState({
     statusSummariesByCompany: data?.statusSummariesByCompany,
     selectedCompanyCodes,
   });
+
+  
+const reconciliationSummary = aggregatedStatusSummary.filter(item =>
+  ["T", "C", "C0", "O", "R", "WA", "WR", "E"].includes(item.key)
+);
+
+const certificationSummary = aggregatedStatusSummary.filter(item =>
+  ["CERT_AUTO", "CERT_MANUAL"].includes(item.key)
+);
+
+const dueDateSummary = aggregatedStatusSummary.filter(item =>
+  ["DUE_IN", "DUE_OVER"].includes(item.key)
+);
+
 
   const selectedCompanySystemStatus = useMemo<
     ReconciliationSystemStatus | undefined
@@ -45,63 +55,36 @@ export function useReconciliationViewState({
     return "READY";
   }, [data, selectedCompanyCodes]);
 
+  const systemStatusForSelection = useMemo(() => {
+    if (!data) return [];
+
+    return data.systemStatus.filter((s) =>
+      selectedCompanyCodes.includes(s.companyCode)
+    );
+  }, [data, selectedCompanyCodes]);
+
   const detailRows: ReconciliationRow[] = useMemo(() => {
     if (!data || !selectedStatusKey) return [];
 
     return filterRowsByStatus(data.rows, selectedStatusKey);
   }, [data, selectedStatusKey]);
 
+
   return {
-    aggregatedStatusSummary,
+    reconciliationSummary,
+    certificationSummary,
+    dueDateSummary,
     selectedCompanySystemStatus,
+    systemStatusForSelection,
     detailRows,
   };
+  
 }
 
 function filterRowsByStatus(
   rows: ReconciliationRow[],
   statusKey: ReconciliationStatusKey
 ): ReconciliationRow[] {
-  switch (statusKey) {
-    case "T":
-      return rows;
-
-    case "C":
-      return rows.filter((r) => r.certificationStatus === "Certified");
-
-    case "C0":
-      return rows.filter(
-        (r) =>
-          r.certificationStatus === "Certified" &&
-          Number(r.unanalyzedQuantity) === 0
-      );
-
-    case "O":
-      return rows.filter((r) => r.certificationStatus === "Open");
-
-    case "R":
-      return rows.filter((r) => r.certificationStatus === "Rejected");
-
-    case "WA":
-      return rows.filter(
-        (r) =>
-          r.certificationStatus === "Open" &&
-          Boolean(r.approver) &&
-          !r.approverResponder
-      );
-
-    case "WR":
-      return rows.filter(
-        (r) =>
-          r.certificationStatus === "Open" &&
-          Boolean(r.reviewer) &&
-          !r.reviewerResponder
-      );
-
-    case "E":
-      return rows.filter((r) => r.jobStatus === "ERROR");
-
-    default:
-      return [];
-  }
+  if (statusKey === "T") return rows;
+  return rows.filter((r) => r.statusKey === statusKey);  
 }

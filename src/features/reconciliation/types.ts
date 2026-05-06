@@ -15,7 +15,7 @@ export interface ReconciliationRow {
   reviewer: string;
   reviewerResponder: string;
 
-  certificationStatus: string;
+  statusKey: ReconciliationStatusKey;
   preparerTimestamp?: string;
   approverTimestamp?: string;
   reviewerTimestamp?: string;
@@ -61,8 +61,8 @@ export interface ReconciliationPeriod {
  * KPI summary (business level)
  * -------------------------------- */
 export interface ReconciliationKpis {
-  inScope: number;
-  successfullyGenerated: number;
+  expectedReconciliations: number;
+  generatedReconciliations: number;
 }
 
 /* --------------------------------
@@ -70,7 +70,7 @@ export interface ReconciliationKpis {
  * -------------------------------- */
 
 export interface FetchReconciliationParams extends ReconciliationPeriod {
-  companyCodes?: string[]; // undefined = All
+  companyCodes?: string[];
 }
 
 export interface RefreshReconciliationRequest extends ReconciliationPeriod {
@@ -103,6 +103,7 @@ export interface ReconciliationCompanySystemStatus {
 export interface FetchReconciliationResponse {
   period: ReconciliationPeriod;
   kpis: ReconciliationKpis;
+  statusDictionary: Record<ReconciliationStatusKey, string>;
   statusSummariesByCompany: ReconciliationCompanyStatusSummary[];
   rows: ReconciliationRow[];
   systemStatus: ReconciliationCompanySystemStatus[];
@@ -124,6 +125,7 @@ export interface RefreshReconciliationResponse {
 }
 
 export type ReconciliationStatusKey =
+  // Existing reconciliation workflow statuses
   | "T"
   | "C"
   | "C0"
@@ -131,11 +133,14 @@ export type ReconciliationStatusKey =
   | "R"
   | "WA"
   | "WR"
-  | "E";
+  | "E"
+  | "CERT_AUTO"
+  | "CERT_MANUAL"
+  | "DUE_IN"
+  | "DUE_OVER";
 
 export interface ReconciliationStatusSummaryItem {
   key: ReconciliationStatusKey;
-  label: string;
   count: number;
 }
 
@@ -160,21 +165,5 @@ export interface ApplicationInfo {
 
   environment: string;
 
-  supportContact: string;
-}
-
-export const UI_INFO = {
-  applicationName: "Reconciliation Dashboard",
-  uiVersion: import.meta.env.VITE_APP_VERSION ?? "unknown",
-  uiBuildTime: import.meta.env.VITE_APP_BUILD_TIME ?? "unknown",
-};
-
-console.log("VITE_APP_VERSION", import.meta.env.VITE_APP_VERSION);
-console.log("VITE_APP_BUILD_TIME", import.meta.env.VITE_APP_BUILD_TI);
-
-export interface BackendInfo {
-  backendVersion: string;
-  backendBuildTime: string;
-  environment: string;
   supportContact: string;
 }

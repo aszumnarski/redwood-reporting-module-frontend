@@ -11,12 +11,14 @@ import type { ReconciliationStatusKey } from "../types";
 interface Props {
   data: ReconciliationStatusSummaryItem[];
   selectedStatusKey: ReconciliationStatusKey | null;
+  statusDictionary: Partial<Record<ReconciliationStatusKey, string>>;
   onSelect: (key: ReconciliationStatusKey) => void;
 }
 
 export function StatusSummaryTable({
   data,
   selectedStatusKey,
+  statusDictionary,
   onSelect,
 }: Props) {
   return (
@@ -31,7 +33,7 @@ export function StatusSummaryTable({
               onClick={() => onSelect(row.key)}
               sx={{ cursor: "pointer" }}
             >
-              <TableCell>{row.label}</TableCell>
+              <TableCell>{statusDictionary[row.key] ?? row.key}</TableCell>
               <TableCell align="right">{row.count}</TableCell>
             </TableRow>
           ))}

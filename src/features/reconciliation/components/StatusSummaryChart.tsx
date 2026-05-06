@@ -13,13 +13,15 @@ import type { ReconciliationStatusKey } from "../types";
 interface Props {
   data: ReconciliationStatusSummaryItem[];
   selectedStatusKey: ReconciliationStatusKey | null;
+  statusDictionary: Partial<Record<ReconciliationStatusKey, string>>;
   onSelect: (key: ReconciliationStatusKey) => void;
 }
 
 function StatusBar(props: any) {
   const { x, y, width, height, payload, selectedStatus, onSelect } = props;
 
-  const isSelected = payload.label === selectedStatus;
+  const statusKey = payload.key as ReconciliationStatusKey;
+  const isSelected = statusKey === selectedStatus;
 
   return (
     <rect
@@ -31,7 +33,7 @@ function StatusBar(props: any) {
       ry={2}
       fill={isSelected ? "#2e7d32" : "#1976d2"}
       style={{ cursor: "pointer" }}
-      onClick={() => onSelect(payload.label)}
+      onClick={() => onSelect(statusKey)}
     />
   );
 }
@@ -39,6 +41,7 @@ function StatusBar(props: any) {
 export function StatusSummaryChart({
   data,
   selectedStatusKey,
+  statusDictionary,
   onSelect,
 }: Props) {
   return (
@@ -46,7 +49,7 @@ export function StatusSummaryChart({
       variant="outlined"
       sx={{
         p: 2,
-        height: 320, // ✅ fixed outer height
+        height: 320,
         display: "flex",
         flexDirection: "column",
       }}
@@ -55,7 +58,6 @@ export function StatusSummaryChart({
         Reconciliation status distribution
       </Typography>
 
-      {/* ✅ THIS BOX IS THE KEY FIX */}
       <Box sx={{ flex: 1, minHeight: 0 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
@@ -64,17 +66,27 @@ export function StatusSummaryChart({
             margin={{ left: 20, right: 20 }}
           >
             <XAxis type="number" />
-            <YAxis type="category" dataKey="label" width={160} />
+
+            <YAxis
+              type="category"
+              dataKey="key"
+              width={160}
+              tickFormatter={(value) =>
+                statusDictionary[value as ReconciliationStatusKey] ??
+                String(value)
+              }
+            />
 
             <Tooltip
-              formatter={(value) => [
-                value != null ? String(value) : "0",
-                "Count",
-              ]}
+              formatter={(value) => [String(value ?? 0), "Count"]}
+              labelFormatter={(label) =>
+                statusDictionary[label as ReconciliationStatusKey] ??
+                String(label)
+              }
             />
 
             <Bar
-              dataKey="value"
+              dataKey="count"
               shape={(barProps) => (
                 <StatusBar
                   {...barProps}

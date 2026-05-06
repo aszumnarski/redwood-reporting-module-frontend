@@ -20,10 +20,10 @@ export function ReconciliationOverview({
   systemStatus,
 }: ReconciliationOverviewProps) {
   const successRate =
-    kpis.inScope > 0
-      ? Math.round((kpis.successfullyGenerated / kpis.inScope) * 100)
+    kpis.expectedReconciliations > 0
+      ? Math.round((kpis.generatedReconciliations / kpis.expectedReconciliations) * 100)
       : 0;
-
+console.log({kpis});
   return (
     <Paper variant="outlined" sx={{ p: 3, mt: 3 }}>
       <Typography variant="h6" gutterBottom>
@@ -33,13 +33,13 @@ export function ReconciliationOverview({
       {/* KPI cards */}
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
         <Box sx={{ flex: 1 }}>
-          <KpiCard label="In scope" value={kpis.inScope} />
+          <KpiCard label="In scope" value={kpis.expectedReconciliations} />
         </Box>
 
         <Box sx={{ flex: 1 }}>
           <KpiCard
             label="Successfully generated"
-            value={kpis.successfullyGenerated}
+            value={kpis.generatedReconciliations}
             valueColor="success.main"
           />
         </Box>

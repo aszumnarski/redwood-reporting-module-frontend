@@ -17,6 +17,11 @@ import {
   Alert,
   Checkbox,
   ListItemText,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
 } from "@mui/material";
 
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
@@ -25,7 +30,9 @@ import IconButton from "@mui/material/IconButton";
 import { useApplicationInfo } from "./hooks/useApplicationInfo";
 import { AboutDialog } from "./components/AboutDialog";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
+
+import { Popover } from "@mui/material";
 
 import { fetchReconciliationData } from "../../api/reconciliation.api";
 
@@ -33,8 +40,10 @@ import type {
   FetchReconciliationResponse,
   FetchReconciliationParams,
   ReconciliationStatusKey,
+  ReconciliationStatusSummaryItem,
 } from "../reconciliation/types";
 
+import { SystemStatusIcon } from "./components/SystemStatusIcon";
 import { StatusSummaryTable } from "./components/StatusSummaryTable";
 import { StatusSummaryChart } from "./components/StatusSummaryChart";
 import { ReconciliationDetailTable } from "./components/ReconciliationDetailTable";
@@ -75,6 +84,19 @@ export function ReconciliationRunnerPage() {
   const [yearMonth, setYearMonth] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "chart">("table");
 
+  const [systemStatusAnchorEl, setSystemStatusAnchorEl] =
+    useState<HTMLElement | null>(null);
+
+  const isSystemStatusOpen = Boolean(systemStatusAnchorEl);
+
+  const handleToggleSystemStatus = (event: React.MouseEvent<HTMLElement>) => {
+    setSystemStatusAnchorEl((prev) => (prev ? null : event.currentTarget));
+  };
+
+  const handleCloseSystemStatus = () => {
+    setSystemStatusAnchorEl(null);
+  };
+
   // -------- API state --------
   const [data, setData] = useState<FetchReconciliationResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -107,29 +129,67 @@ export function ReconciliationRunnerPage() {
     (code) => isSubmitting(code)
   );
 
-  const { aggregatedStatusSummary, selectedCompanySystemStatus, detailRows } =
-    useReconciliationViewState({
-      data,
-      selectedCompanyCodes,
-      selectedStatusKey,
+  const {
+    reconciliationSummary,
+    certificationSummary,
+    dueDateSummary,
+    selectedCompanySystemStatus,
+    systemStatusForSelection,
+    detailRows,
+  } = useReconciliationViewState({
+    data,
+    selectedCompanyCodes,
+    selectedStatusKey,
+  });
+
+  const certificationDonutConfig = [
+    {
+      key: "CERT_AUTO" as const,
+      color: "#1976d2",
+    },
+    {
+      key: "CERT_MANUAL" as const,
+      color: "#9c27b0",
+    },
+  ];
+
+  const dueDateDonutConfig = [
+    {
+      key: "DUE_IN" as const,
+      color: "#2e7d32",
+    },
+    {
+      key: "DUE_OVER" as const,
+      color: "#d32f2f",
+    },
+  ];
+
+  function buildDonutData(
+    aggregated: ReconciliationStatusSummaryItem[],
+    config: { key: ReconciliationStatusKey; color: string }[],
+    dictionary: Record<string, string>
+  ) {
+    return config.map(({ key, color }) => {
+      const found = aggregated.find((item) => item.key === key);
+
+      return {
+        label: dictionary[key] ?? key,
+        value: found?.count ?? 0,
+        color,
+      };
     });
-
-  const statusLabelByKey = useMemo(() => {
-    return Object.fromEntries(
-      aggregatedStatusSummary.map((s) => [s.key, s.label])
-    );
-  }, [aggregatedStatusSummary]);
-
-  const selectedStatusLabel =
-    selectedStatusKey != null ? statusLabelByKey[selectedStatusKey] : undefined;
+  }
 
   const effectiveCompanyCodes = resolveCompanyScope(
     selectedCompanyCodes,
-    availableCompanyCodes
+    defaultCompanyCodes
   );
 
+  const isAllCompaniesSelected =
+    effectiveCompanyCodes.length === availableCompanyCodes.length;
+
   const primaryButtonState = resolvePrimaryButtonState({
-    isAllCompanies: effectiveCompanyCodes === undefined,
+    isAllCompanies: isAllCompaniesSelected,
     systemStatus: selectedCompanySystemStatus,
   });
 
@@ -138,10 +198,10 @@ export function ReconciliationRunnerPage() {
   // -------------------------------
 
   useEffect(() => {
-    if (aggregatedStatusSummary.length > 0 && selectedStatusKey === null) {
-      setSelectedStatusKey(aggregatedStatusSummary[0].key);
+    if (reconciliationSummary.length > 0 && selectedStatusKey === null) {
+      setSelectedStatusKey(reconciliationSummary[0].key);
     }
-  }, [aggregatedStatusSummary, selectedStatusKey]);
+  }, [reconciliationSummary, selectedStatusKey]);
 
   useEffect(() => {
     if (selectedCompanyCodes.length > 0) return;
@@ -159,9 +219,13 @@ export function ReconciliationRunnerPage() {
   useEffect(() => {
     console.log("period defaults", defaultPeriod);
     if (!yearMonth && defaultPeriod) {
-      const value = `${
-        defaultPeriod.fiscalYear
-      }/${defaultPeriod.fiscalPeriod.replace("P", "")}`;
+      const period =
+        typeof defaultPeriod.fiscalPeriod === "number"
+          ? String(defaultPeriod.fiscalPeriod).padStart(2, "0")
+          : defaultPeriod.fiscalPeriod.replace("P", "");
+
+      const value = `${defaultPeriod.fiscalYear}/${period}`;
+
       setYearMonth(value);
     }
   }, [defaultPeriod, yearMonth]);
@@ -202,11 +266,25 @@ export function ReconciliationRunnerPage() {
     }
   }
 
+  const statusDictionary: Partial<Record<ReconciliationStatusKey, string>> =
+    data?.statusDictionary ?? {};
+
+  const certificationDonutData = buildDonutData(
+    certificationSummary,
+    certificationDonutConfig,
+    statusDictionary
+  );
+
+  const dueDateDonutData = buildDonutData(
+    dueDateSummary,
+    dueDateDonutConfig,
+    statusDictionary
+  );
+
   const isSingleCompanyUser = availableCompanyCodes.length === 1;
 
   const isSomeCompaniesSelected =
-    selectedCompanyCodes.length > 0 &&
-    selectedCompanyCodes.length < availableCompanyCodes.length;
+    selectedCompanyCodes.length > 0 && !isAllCompaniesSelected;
 
   // -------------------------------
   // Polling when backend is RUNNING
@@ -277,7 +355,7 @@ export function ReconciliationRunnerPage() {
               select: {
                 multiple: true,
                 renderValue: () =>
-                  effectiveCompanyCodes === undefined
+                  isAllCompaniesSelected
                     ? "All companies"
                     : selectedCompanyCodes.join(", "),
               },
@@ -286,13 +364,13 @@ export function ReconciliationRunnerPage() {
             {!isSingleCompanyUser && (
               <MenuItem disableRipple>
                 <Checkbox
-                  checked={effectiveCompanyCodes === undefined}
+                  checked={isAllCompaniesSelected}
                   indeterminate={isSomeCompaniesSelected}
                   onClick={(e) => {
                     e.stopPropagation();
 
                     // Only act when not already all selected
-                    if (effectiveCompanyCodes !== undefined) {
+                    if (!isAllCompaniesSelected) {
                       setSelectedCompanyCodes(availableCompanyCodes);
                     }
                   }}
@@ -363,10 +441,13 @@ export function ReconciliationRunnerPage() {
             sx={{ minWidth: 160 }}
           >
             {availablePeriods.map((p) => {
-              const value = `${p.fiscalYear}/${p.fiscalPeriod.replace(
-                "P",
-                ""
-              )}`;
+              const period =
+                typeof p.fiscalPeriod === "number"
+                  ? String(p.fiscalPeriod).padStart(2, "0")
+                  : p.fiscalPeriod.replace("P", "");
+
+              const value = `${p.fiscalYear}/${period}`;
+
               return (
                 <MenuItem key={value} value={value}>
                   {value}
@@ -374,35 +455,98 @@ export function ReconciliationRunnerPage() {
               );
             })}
           </TextField>
-
-          <Button
-            variant="contained"
-            size="small"
-            disabled={
-              primaryButtonState.disabled ||
-              isRefreshSubmittingForSelectedCompanies
-            }
-            title={
-              isRefreshSubmittingForSelectedCompanies
-                ? "Starting refresh…"
-                : primaryButtonState.tooltip
-            }
-            onClick={() => {
-              if (primaryButtonState.action === "GET") {
-                runReport();
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Button
+              variant="contained"
+              size="small"
+              disabled={
+                primaryButtonState.disabled ||
+                isRefreshSubmittingForSelectedCompanies
               }
-
-              if (primaryButtonState.action === "REFRESH") {
-                if (primaryButtonState.requiresConfirmation) {
-                  setConfirmRefreshOpen(true);
+              title={
+                isRefreshSubmittingForSelectedCompanies
+                  ? "Starting refresh…"
+                  : primaryButtonState.tooltip
+              }
+              onClick={() => {
+                if (primaryButtonState.action === "GET") {
+                  runReport();
                 }
-              }
+
+                if (primaryButtonState.action === "REFRESH") {
+                  if (primaryButtonState.requiresConfirmation) {
+                    setConfirmRefreshOpen(true);
+                  }
+                }
+              }}
+            >
+              {isRefreshSubmittingForSelectedCompanies
+                ? "Starting refresh…"
+                : primaryButtonState.label}
+            </Button>
+
+            {selectedCompanySystemStatus && (
+              <IconButton
+                onClick={handleToggleSystemStatus}
+                aria-label="Show system refresh status"
+                size="small"
+              >
+                <SystemStatusIcon status={selectedCompanySystemStatus} />
+              </IconButton>
+            )}
+          </Box>
+          <Popover
+            open={isSystemStatusOpen}
+            anchorEl={systemStatusAnchorEl}
+            onClose={handleCloseSystemStatus}
+            anchorOrigin={{
+              vertical: "bottom",
+              horizontal: "right",
             }}
+            transformOrigin={{
+              vertical: "top",
+              horizontal: "right",
+            }}
+            disableRestoreFocus
           >
-            {isRefreshSubmittingForSelectedCompanies
-              ? "Starting refresh…"
-              : primaryButtonState.label}
-          </Button>
+            <Box sx={{ p: 2, minWidth: 420 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                System refresh status
+              </Typography>
+
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Company</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Last refresh</TableCell>
+                    <TableCell>Error</TableCell>
+                  </TableRow>
+                </TableHead>
+
+                <TableBody>
+                  {systemStatusForSelection.map((row) => (
+                    <TableRow key={row.companyCode}>
+                      <TableCell>{row.companyCode}</TableCell>
+                      <TableCell>{row.status}</TableCell>
+                      <TableCell>{row.generatedAt ?? "—"}</TableCell>
+                      <TableCell>{row.errorMessage ?? "—"}</TableCell>
+                    </TableRow>
+                  ))}
+
+                  {systemStatusForSelection.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4}>
+                        <Typography variant="body2" color="text.secondary">
+                          No system status available
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </Box>
+          </Popover>
         </Stack>
       </Paper>
 
@@ -475,42 +619,43 @@ export function ReconciliationRunnerPage() {
 
                 {viewMode === "table" && (
                   <StatusSummaryTable
-                    data={aggregatedStatusSummary}
+                    data={reconciliationSummary}
                     selectedStatusKey={selectedStatusKey}
+                    statusDictionary={statusDictionary}
                     onSelect={(item) => setSelectedStatusKey(item)}
                   />
                 )}
 
                 {viewMode === "chart" && (
                   <StatusSummaryChart
-                    data={aggregatedStatusSummary}
+                    data={reconciliationSummary}
                     selectedStatusKey={selectedStatusKey}
+                    statusDictionary={statusDictionary}
                     onSelect={(item) => setSelectedStatusKey(item)}
                   />
                 )}
               </Box>
 
               {/* RIGHT */}
+
               <Box sx={{ flex: 1 }}>
                 <DonutChart
                   label="Certification overview"
-                  value={68}
-                  color="#1976d2"
+                  data={certificationDonutData}
                 />
-                <DonutChart
-                  label="Due date overview"
-                  value={82}
-                  color="#2e7d32"
-                />
+
+                <DonutChart label="Due date overview" data={dueDateDonutData} />
               </Box>
             </Box>
           </Paper>
 
           {/* Details */}
-          {selectedStatusKey && selectedStatusLabel && (
+
+          {selectedStatusKey && (
             <ReconciliationDetailTable
-              status={selectedStatusLabel}
+              statusKey={selectedStatusKey}
               rows={detailRows}
+              statusDictionary={statusDictionary}
             />
           )}
         </>

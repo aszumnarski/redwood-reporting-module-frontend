@@ -15,21 +15,26 @@ import {
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 
-import type { ReconciliationRow } from "../types";
+import type { ReconciliationRow, ReconciliationStatusKey } from "../types";
 import { ReconciliationRowDetails } from "./ReconciliationRowDetails";
 
 interface Props {
   rows: ReconciliationRow[];
-  status: string;
+  statusKey: ReconciliationStatusKey;
+  statusDictionary: Partial<Record<ReconciliationStatusKey, string>>;
 }
 
-export function ReconciliationDetailTable({ rows, status }: Props) {
+export function ReconciliationDetailTable({
+  rows,
+  statusKey,
+  statusDictionary,
+}: Props) {
   const [drawerRow, setDrawerRow] = useState<ReconciliationRow | null>(null);
 
   return (
     <Paper sx={{ p: 3, mt: 4 }} variant="outlined">
       <Typography variant="h6" gutterBottom>
-        Reconciliation details – {status}
+        Reconciliation details – {statusDictionary[statusKey]}
       </Typography>
 
       <TableContainer sx={{ maxHeight: 500 }}>
@@ -63,7 +68,9 @@ export function ReconciliationDetailTable({ rows, status }: Props) {
                 onClick={() => setDrawerRow(row)}
               >
                 <TableCell>{row.jobId}</TableCell>
-                <TableCell>{row.certificationStatus}</TableCell>
+                <TableCell>
+                  {statusDictionary[row.statusKey] ?? row.statusKey}
+                </TableCell>
                 <TableCell>{row.jobStatus}</TableCell>
                 <TableCell>{row.companyCode}</TableCell>
                 <TableCell>{row.account}</TableCell>
@@ -123,7 +130,12 @@ export function ReconciliationDetailTable({ rows, status }: Props) {
 
         {/* CONTENT */}
         <Box sx={{ flex: 1, overflowY: "auto" }}>
-          {drawerRow && <ReconciliationRowDetails row={drawerRow} />}
+          {drawerRow && (
+            <ReconciliationRowDetails
+              row={drawerRow}
+              statusDictionary={statusDictionary}
+            />
+          )}
         </Box>
       </Drawer>
     </Paper>

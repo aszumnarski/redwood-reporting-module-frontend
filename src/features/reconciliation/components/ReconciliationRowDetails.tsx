@@ -1,9 +1,10 @@
 import { Box, Stack, Typography, Divider } from "@mui/material";
-import type { ReconciliationRow } from "../types";
+import type { ReconciliationRow,ReconciliationStatusKey } from "../types";
 
 
 interface Props {
   row: ReconciliationRow;
+  statusDictionary: Partial<Record<ReconciliationStatusKey, string>>;
 }
 
 function Field({
@@ -25,7 +26,7 @@ function Field({
   );
 }
 
-export function ReconciliationRowDetails({ row }: Props) {
+export function ReconciliationRowDetails({ row, statusDictionary}: Props) {
   return (
     <Box
       sx={{
@@ -64,7 +65,7 @@ export function ReconciliationRowDetails({ row }: Props) {
           <Field label="Job Status" value={row.jobStatus} />
           <Field
             label="Certification Status"
-            value={row.certificationStatus}
+            value={statusDictionary[row.statusKey] ?? row.statusKey}
           />
           <Field label="Start Time" value={row.startTime} />
           <Field label="End Time" value={row.endTime} />
