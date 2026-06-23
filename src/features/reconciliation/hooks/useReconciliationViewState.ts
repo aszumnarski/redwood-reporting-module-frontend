@@ -25,7 +25,7 @@ export function useReconciliationViewState({
 
   
 const reconciliationSummary = aggregatedStatusSummary.filter(item =>
-  ["T", "C", "C0", "O", "R", "WA", "WR", "E"].includes(item.key)
+  ["T", "C", "C0", "O", "R", "WA", "WR", "E", "NYG"].includes(item.key)
 );
 
 const certificationSummary = aggregatedStatusSummary.filter(item =>

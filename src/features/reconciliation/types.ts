@@ -134,6 +134,7 @@ export type ReconciliationStatusKey =
   | "WA"
   | "WR"
   | "E"
+  | "NYG"
   | "CERT_AUTO"
   | "CERT_MANUAL"
   | "DUE_IN"
