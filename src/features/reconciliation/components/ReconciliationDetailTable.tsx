@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Box,
   Drawer,
@@ -11,8 +11,12 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
   Typography,
+  TableSortLabel,
+  Popover,
 } from "@mui/material";
+import FilterListIcon from "@mui/icons-material/FilterList";
 import CloseIcon from "@mui/icons-material/Close";
 
 import type { ReconciliationRow, ReconciliationStatusKey } from "../types";
@@ -30,6 +34,129 @@ export function ReconciliationDetailTable({
   statusDictionary,
 }: Props) {
   const [drawerRow, setDrawerRow] = useState<ReconciliationRow | null>(null);
+  const [sortField, setSortField] = useState<keyof ReconciliationRow | null>(
+    null
+  );
+
+  const [activeFilterField, setActiveFilterField] = useState<
+    keyof ReconciliationRow | null
+  >(null);
+
+  const [filters, setFilters] = useState<
+    Partial<Record<keyof ReconciliationRow, string>>
+  >({});
+
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  const filteredRows = useMemo(() => {
+    return rows.filter((row) =>
+      Object.entries(filters).every(([field, filterValue]) => {
+        if (!filterValue) {
+          return true;
+        }
+
+        const value = row[field as keyof ReconciliationRow];
+
+        return String(value).toLowerCase().includes(filterValue.toLowerCase());
+      })
+    );
+  }, [rows, filters]);
+
+  const getFilterLabel = (field: keyof ReconciliationRow | null) => {
+    switch (field) {
+      case "companyCode":
+        return "Company";
+
+      case "account":
+        return "Account";
+
+      default:
+        return "Filter";
+    }
+  };
+
+  const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
+
+  const openFilter = (
+    event: React.MouseEvent<HTMLElement>,
+    field: keyof ReconciliationRow
+  ) => {
+    setFilterAnchor(event.currentTarget);
+    setActiveFilterField(field);
+  };
+
+  const sortedRows = useMemo(() => {
+    if (!sortField) {
+      return filteredRows;
+    }
+
+    const result = [...filteredRows];
+
+    result.sort((a, b) => {
+      const valueA = a[sortField];
+      const valueB = b[sortField];
+
+      if (valueA == null && valueB == null) return 0;
+      if (valueA == null) return 1;
+      if (valueB == null) return -1;
+
+      let comparison: number;
+
+      const numberA = Number(valueA);
+      const numberB = Number(valueB);
+
+      const areNumbers = !Number.isNaN(numberA) && !Number.isNaN(numberB);
+
+      if (areNumbers) {
+        comparison = numberA - numberB;
+      } else {
+        comparison = String(valueA).localeCompare(String(valueB), undefined, {
+          sensitivity: "base",
+        });
+      }
+
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+
+    return result;
+  }, [filteredRows, sortField, sortDirection]);
+
+  const handleSort = (field: keyof ReconciliationRow) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const renderSortableHeader = (
+    label: string,
+    field: keyof ReconciliationRow
+  ) => (
+    <TableSortLabel
+      active={sortField === field}
+      direction={sortField === field ? sortDirection : "asc"}
+      onClick={() => handleSort(field)}
+    >
+      {label}
+    </TableSortLabel>
+  );
+
+  const renderFilterIcon = (field: keyof ReconciliationRow) => (
+    <IconButton
+      size="small"
+      onClick={(event) => {
+        event.stopPropagation();
+        openFilter(event, field);
+      }}
+    >
+      <FilterListIcon
+        fontSize="small"
+        color={filters[field] ? "primary" : "inherit"}
+      />
+    </IconButton>
+  );
 
   return (
     <Paper sx={{ p: 3, mt: 4 }} variant="outlined">
@@ -41,23 +168,50 @@ export function ReconciliationDetailTable({
         <Table size="small" stickyHeader>
           <TableHead>
             <TableRow>
-              <TableCell>Job ID</TableCell>
+              <TableCell>{renderSortableHeader("Job ID", "jobId")}</TableCell>
               <TableCell>Certification Status</TableCell>
               <TableCell>Job Status</TableCell>
-              <TableCell>Company</TableCell>
-              <TableCell>Account</TableCell>
+
+              <TableCell>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  {renderSortableHeader("Company", "companyCode")}
+                  {renderFilterIcon("companyCode")}
+                </Box>
+              </TableCell>
+
+              <TableCell>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  {renderSortableHeader("Account", "account")}
+                  {renderFilterIcon("account")}
+                </Box>
+              </TableCell>
+
               <TableCell>Account Group</TableCell>
               <TableCell>Preparer</TableCell>
               <TableCell>Approver</TableCell>
               <TableCell>Reviewer</TableCell>
               <TableCell>Due Date</TableCell>
               <TableCell>Currency</TableCell>
-              <TableCell align="right">SAP Balance</TableCell>
+              <TableCell>
+                {renderSortableHeader("SAP Balance", "sapBalance")}
+              </TableCell>
             </TableRow>
           </TableHead>
 
           <TableBody>
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <TableRow
                 key={row.jobId}
                 hover
@@ -84,7 +238,7 @@ export function ReconciliationDetailTable({
               </TableRow>
             ))}
 
-            {rows.length === 0 && (
+            {sortedRows.length === 0 && (
               <TableRow>
                 <TableCell colSpan={12} align="center">
                   No reconciliations found for this status
@@ -94,6 +248,51 @@ export function ReconciliationDetailTable({
           </TableBody>
         </Table>
       </TableContainer>
+
+      <Popover
+        open={Boolean(filterAnchor)}
+        anchorEl={filterAnchor}
+        onClose={() => {
+          setFilterAnchor(null);
+          setActiveFilterField(null);
+        }}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "left",
+        }}
+      >
+        <Box
+          sx={{
+            p: 2,
+            width: 250,
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+          }}
+        >
+
+<TextField
+  fullWidth
+  label={getFilterLabel(activeFilterField)}
+  value={
+    activeFilterField
+      ? filters[activeFilterField] ?? ""
+      : ""
+  }
+  onChange={(event) => {
+    if (!activeFilterField) {
+      return;
+    }
+
+    setFilters((prev) => ({
+      ...prev,
+      [activeFilterField]: event.target.value,
+    }));
+  }}
+/>
+
+        </Box>
+      </Popover>
 
       {/* RIGHT-SIDE DETAILS DRAWER */}
 

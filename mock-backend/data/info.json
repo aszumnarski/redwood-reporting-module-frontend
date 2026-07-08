@@ -1,0 +1,9 @@
+{
+  "applicationName": "Reconciliation Dashboard",
+  "uiVersion": "1.1.0",
+  "uiBuildTime": "2026/07/08 10:21:40,653 GMT",
+  "backendVersion": "1.2.0",
+  "backendBuildTime": "2026/06/30 09:44:04,444 GMT",
+  "environment": "TEST",
+  "supportContact": "adam.szumnarski@siemens.com"
+}

@@ -30,7 +30,7 @@ export async function fetchReconciliationData(
   if (params.companyCodes?.length) {
     query.set("companyCodes", params.companyCodes.join(","));
   }
-
+  console.log("API Base:", getApiBase());
   const url =
     `${getApiBase()}/reconciliation/report` +
     (query.toString() ? `?${query.toString()}` : "");
@@ -57,6 +57,7 @@ export async function requestReconciliationRefresh(
   fiscalPeriod: string,
   companyCodes: string[]
 ): Promise<RefreshReconciliationResponse> {
+  console.log("API Base:", getApiBase());
   const response = await fetch(
     `${getApiBase()}/reconciliation/regenerate`,
     {
