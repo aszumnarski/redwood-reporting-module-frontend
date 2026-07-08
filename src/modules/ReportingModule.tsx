@@ -1,6 +1,6 @@
 import { Box, Paper, Tab, Tabs } from "@mui/material";
 import { useState } from "react";
-import { ReportRunnerPage } from "../features/reconciliation/ReconciliationRunnerPage";
+import { ReconciliationRunnerPage } from "../features/reconciliation/ReconciliationRunnerPage";
 
 function JournalVoucherPage() {
   return (
@@ -20,7 +20,7 @@ const MODULES: {
   {
     key: "reconciliation",
     label: "Reconciliation",
-    component: <ReportRunnerPage />,
+    component: <ReconciliationRunnerPage />,
   },
   {
     key: "journalVoucher",

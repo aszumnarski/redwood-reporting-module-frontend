@@ -1,46 +1,75 @@
-import { Box, Paper, Typography } from "@mui/material";
+import { Box, Paper, Typography, Tooltip } from "@mui/material";
 
-interface Props {
+export interface DonutSlice {
   label: string;
   value: number;
   color: string;
 }
 
-export function DonutChart({ label, value, color }: Props) {
+interface Props {
+  label: string;
+  data: DonutSlice[];
+}
+
+export function DonutChart({ label, data }: Props) {
+  const total = data.reduce((sum, d) => sum + d.value, 0);
+
+  let current = 0;
+  const gradient = data
+    .map(slice => {
+      const percentage = total === 0 ? 0 : (slice.value / total) * 100;
+      const start = current;
+      const end = current + percentage;
+      current = end;
+      return `${slice.color} ${start}% ${end}%`;
+    })
+    .join(", ");
+
+  const background = `conic-gradient(${gradient}, #e0e0e0 0)`;
+
+  const tooltipText = data
+    .map(d => `${d.label}: ${d.value}`)
+    .join("\n");
+
   return (
     <Paper sx={{ p: 2 }} variant="outlined">
       <Typography variant="subtitle2" gutterBottom>
         {label}
       </Typography>
 
-      <Box
-        sx={{
-          width: 140,
-          height: 140,
-          mx: "auto",
-          borderRadius: "50%",
-          background: `conic-gradient(${color} ${value}%, #e0e0e0 0)`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
+      <Tooltip title={<pre style={{ margin: 0 }}>{tooltipText}</pre>}>
         <Box
           sx={{
-            width: 90,
-            height: 90,
+            width: 140,
+            height: 140,
+            mx: "auto",
             borderRadius: "50%",
-            bgcolor: "background.paper",
+            background,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            cursor: "default",
           }}
         >
-          <Typography variant="h6">
-            {value}%
-          </Typography>
+          <Box
+            sx={{
+              width: 90,
+              height: 90,
+              borderRadius: "50%",
+              bgcolor: "background.paper",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexDirection: "column",
+            }}
+          >
+            <Typography variant="h6">{total}</Typography>
+            <Typography variant="caption" color="text.secondary">
+              total
+            </Typography>
+          </Box>
         </Box>
-      </Box>
+      </Tooltip>
     </Paper>
   );
 }

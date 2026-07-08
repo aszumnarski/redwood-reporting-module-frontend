@@ -8,73 +8,333 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   MenuItem,
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Alert,
+  Checkbox,
+  ListItemText,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
 } from "@mui/material";
 
-import { useState, useEffect } from "react";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import IconButton from "@mui/material/IconButton";
 
-import { KPI_DATA, STATUS_SUMMARY_DATA } from "./mockData";
+import { useApplicationInfo } from "./hooks/useApplicationInfo";
+import { AboutDialog } from "./components/AboutDialog";
 
-import { ReconciliationDetailTable } from "./components/ReconciliationDetailTable";
-import { MOCK_RECONCILIATION_ROWS } from "./mockDetailData";
+import { useEffect, useState } from "react";
 
-import { StatusSummaryChart } from "./components/StatusSummaryChart";
+import { Popover } from "@mui/material";
 
-import { DonutChart } from "./components/DonutChart";
+import { fetchReconciliationData } from "../../api/reconciliation.api";
 
+import type {
+  FetchReconciliationResponse,
+  FetchReconciliationParams,
+  ReconciliationStatusKey,
+  ReconciliationStatusSummaryItem,
+} from "../reconciliation/types";
+
+import { SystemStatusIcon } from "./components/SystemStatusIcon";
 import { StatusSummaryTable } from "./components/StatusSummaryTable";
+import { StatusSummaryChart } from "./components/StatusSummaryChart";
+import { ReconciliationDetailTable } from "./components/ReconciliationDetailTable";
+import { DonutChart } from "./components/DonutChart";
+import { ReconciliationOverview } from "./components/ReconciliationOverview";
 
-function getCurrentYearMonth() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  return `${year}/${month}`;
-}
+import { resolvePrimaryButtonState } from "./logic/primaryButtonStateResolver";
+import { useReconciliationRefresh } from "./hooks/useReconciliationRefresh";
+import { useReconciliationPolling } from "./hooks/useReconciliationPolling";
+import { useReconciliationViewState } from "./hooks/useReconciliationViewState";
+import { useReconciliationMetadata } from "./hooks/useReconciliationMetadata";
 
-function splitYearMonth(yearMonth: string) {
+import { resolveCompanyScope } from "./utils/companyScope";
+
+function toFetchParams(
+  yearMonth: string,
+  companyCodes?: string[]
+): FetchReconciliationParams {
   const [year, month] = yearMonth.split("/");
+
   return {
     fiscalYear: year,
-    period: `P${month}`,
+    fiscalPeriod: month,
+    companyCodes,
   };
 }
 
-export function ReportRunnerPage() {
-  const [companyCode, setCompanyCode] = useState("All");
-  const [yearMonth, setYearMonth] = useState(getCurrentYearMonth());
-  const [viewMode, setViewMode] = useState<"table" | "chart">("table");
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(
-    STATUS_SUMMARY_DATA[0]?.label ?? null
+// -------------------------------
+// Component
+// -------------------------------
+
+export function ReconciliationRunnerPage() {
+  // -------- Filter state (what user selects) --------
+  const [selectedCompanyCodes, setSelectedCompanyCodes] = useState<string[]>(
+    []
   );
 
-  const [submittedCriteria, setSubmittedCriteria] = useState<{
-    companyCode: string;
-    yearMonth: string;
-    reportDate: string;
-  } | null>(null);
+  const [yearMonth, setYearMonth] = useState("");
+  const [viewMode, setViewMode] = useState<"table" | "chart">("table");
+
+  const [systemStatusAnchorEl, setSystemStatusAnchorEl] =
+    useState<HTMLElement | null>(null);
+
+  const isSystemStatusOpen = Boolean(systemStatusAnchorEl);
+
+  const handleToggleSystemStatus = (event: React.MouseEvent<HTMLElement>) => {
+    setSystemStatusAnchorEl((prev) => (prev ? null : event.currentTarget));
+  };
+
+  const handleCloseSystemStatus = () => {
+    setSystemStatusAnchorEl(null);
+  };
+
+  // -------- API state --------
+  const [data, setData] = useState<FetchReconciliationResponse | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const {
+    data: metadata,
+    loading: metadataLoading,
+    error: metadataError,
+  } = useReconciliationMetadata();
+
+  // -------- UI-only state --------
+
+  const [selectedStatusKey, setSelectedStatusKey] =
+    useState<ReconciliationStatusKey | null>(null);
+
+  const [confirmRefreshOpen, setConfirmRefreshOpen] = useState(false);
+
+  const { isSubmitting, submitRefresh } = useReconciliationRefresh();
+
+  const availableCompanyCodes = metadata?.availableCompanyCodes ?? [];
+  const availablePeriods = metadata?.availablePeriods ?? [];
+  const defaultCompanyCodes = metadata?.defaultCompanyCodes ?? [];
+  const defaultPeriod = metadata?.defaultPeriod;
+
+  const { info: appInfo } = useApplicationInfo();
+  const [aboutOpen, setAboutOpen] = useState(false);
+
+  const isRefreshSubmittingForSelectedCompanies = selectedCompanyCodes.some(
+    (code) => isSubmitting(code)
+  );
+
+  const {
+    reconciliationSummary,
+    certificationSummary,
+    dueDateSummary,
+    selectedCompanySystemStatus,
+    systemStatusForSelection,
+    detailRows,
+  } = useReconciliationViewState({
+    data,
+    selectedCompanyCodes,
+    selectedStatusKey,
+  });
+
+  const certificationDonutConfig = [
+    {
+      key: "CERT_AUTO" as const,
+      color: "#1976d2",
+    },
+    {
+      key: "CERT_MANUAL" as const,
+      color: "#9c27b0",
+    },
+  ];
+
+  const dueDateDonutConfig = [
+    {
+      key: "DUE_IN" as const,
+      color: "#2e7d32",
+    },
+    {
+      key: "DUE_OVER" as const,
+      color: "#d32f2f",
+    },
+  ];
+
+  function buildDonutData(
+    aggregated: ReconciliationStatusSummaryItem[],
+    config: { key: ReconciliationStatusKey; color: string }[],
+    dictionary: Record<string, string>
+  ) {
+    return config.map(({ key, color }) => {
+      const found = aggregated.find((item) => item.key === key);
+
+      return {
+        label: dictionary[key] ?? key,
+        value: found?.count ?? 0,
+        color,
+      };
+    });
+  }
+
+  const effectiveCompanyCodes = resolveCompanyScope(
+    selectedCompanyCodes,
+    defaultCompanyCodes
+  );
+
+  const isAllCompaniesSelected =
+    effectiveCompanyCodes.length === availableCompanyCodes.length;
+
+  const primaryButtonState = resolvePrimaryButtonState({
+    isAllCompanies: isAllCompaniesSelected,
+    systemStatus: selectedCompanySystemStatus,
+  });
+
+  // -------------------------------
+  // Effects
+  // -------------------------------
 
   useEffect(() => {
-    setSubmittedCriteria({
-      companyCode: "All",
-      yearMonth: getCurrentYearMonth(),
-      reportDate: new Date().toLocaleDateString(),
+    if (reconciliationSummary.length > 0 && selectedStatusKey === null) {
+      setSelectedStatusKey(reconciliationSummary[0].key);
+    }
+  }, [reconciliationSummary, selectedStatusKey]);
+
+  useEffect(() => {
+    if (selectedCompanyCodes.length > 0) return;
+    if (availableCompanyCodes.length === 0) return;
+
+    // Prefer backend-defined defaults if present
+    const initialSelection =
+      defaultCompanyCodes.length > 0
+        ? defaultCompanyCodes
+        : availableCompanyCodes;
+
+    setSelectedCompanyCodes(initialSelection);
+  }, [availableCompanyCodes, defaultCompanyCodes, selectedCompanyCodes]);
+
+  useEffect(() => {
+    console.log("period defaults", defaultPeriod);
+    if (!yearMonth && defaultPeriod) {
+      const period =
+        typeof defaultPeriod.fiscalPeriod === "number"
+          ? String(defaultPeriod.fiscalPeriod).padStart(2, "0")
+          : defaultPeriod.fiscalPeriod.replace("P", "");
+
+      const value = `${defaultPeriod.fiscalYear}/${period}`;
+
+      setYearMonth(value);
+    }
+  }, [defaultPeriod, yearMonth]);
+
+  useEffect(() => {
+    console.log("effect check", { yearMonth, selectedCompanyCodes });
+    if (yearMonth && selectedCompanyCodes.length > 0) {
+      runReport();
+    }
+  }, [yearMonth, selectedCompanyCodes]);
+
+  // -------------------------------
+  // Actions
+  // -------------------------------
+
+  async function runReport() {
+    console.log("runReport called", {
+      yearMonth,
+      selectedCompanyCodes,
+      effectiveCompanyCodes,
     });
 
-    setSelectedStatus(STATUS_SUMMARY_DATA[0]?.label ?? null);
-  }, []);
+    if (!yearMonth) return;
+
+    const params = toFetchParams(yearMonth, effectiveCompanyCodes);
+
+    setSelectedStatusKey(null);
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetchReconciliationData(params);
+      setData(response);
+    } catch (e) {
+      setError("Failed to load reconciliation data: " + e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const statusDictionary: Partial<Record<ReconciliationStatusKey, string>> =
+    data?.statusDictionary ?? {};
+
+  const certificationDonutData = buildDonutData(
+    certificationSummary,
+    certificationDonutConfig,
+    statusDictionary
+  );
+
+  const dueDateDonutData = buildDonutData(
+    dueDateSummary,
+    dueDateDonutConfig,
+    statusDictionary
+  );
+
+  const isSingleCompanyUser = availableCompanyCodes.length === 1;
+
+  const isSomeCompaniesSelected =
+    selectedCompanyCodes.length > 0 && !isAllCompaniesSelected;
+
+  // -------------------------------
+  // Polling when backend is RUNNING
+  // -------------------------------
+
+  const shouldPoll = selectedCompanySystemStatus === "RUNNING";
+
+  useReconciliationPolling(shouldPoll, runReport, 5000);
+
+  // -------------------------------
+  // Render
+  // -------------------------------
+
+  if (metadataLoading) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (metadataError) {
+    return (
+      <Typography color="error">
+        Failed to load reconciliation metadata
+      </Typography>
+    );
+  }
 
   return (
     <Box>
-      <Typography variant="h5" gutterBottom>
-        Reconciliation Status Dashboard
-      </Typography>
-
-      <Paper
-        variant="outlined"
+      <Box
         sx={{
-          p: 1.5,
-          mb: 3,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          mb: 2,
         }}
       >
+        <Typography variant="h5">Reconciliation Status Dashboard</Typography>
+
+        <IconButton onClick={() => setAboutOpen(true)}>
+          <InfoOutlinedIcon />
+        </IconButton>
+      </Box>
+
+      {/* ==============================
+          Filters
+         ============================== */}
+      <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
         <Stack
           direction={{ xs: "column", md: "row" }}
           spacing={2}
@@ -83,17 +343,92 @@ export function ReportRunnerPage() {
           }}
         >
           {/* Company Code */}
+
           <TextField
             select
-            label="Company Code"
-            value={companyCode}
-            onChange={(e) => setCompanyCode(e.target.value)}
+            label="Company Codes"
             size="small"
-            sx={{ minWidth: 200 }}
+            sx={{ minWidth: 320 }}
+            value={selectedCompanyCodes}
+            disabled={isSingleCompanyUser}
+            slotProps={{
+              select: {
+                multiple: true,
+                renderValue: () =>
+                  isAllCompaniesSelected
+                    ? "All companies"
+                    : selectedCompanyCodes.join(", "),
+              },
+            }}
           >
-            <MenuItem value="All">All</MenuItem>
-            <MenuItem value="7092">7092</MenuItem>
-            <MenuItem value="7088">7088</MenuItem>
+            {!isSingleCompanyUser && (
+              <MenuItem disableRipple>
+                <Checkbox
+                  checked={isAllCompaniesSelected}
+                  indeterminate={isSomeCompaniesSelected}
+                  onClick={(e) => {
+                    e.stopPropagation();
+
+                    // Only act when not already all selected
+                    if (!isAllCompaniesSelected) {
+                      setSelectedCompanyCodes(availableCompanyCodes);
+                    }
+                  }}
+                />
+
+                <ListItemText primary="All companies" />
+              </MenuItem>
+            )}
+
+            {availableCompanyCodes.map((code) => {
+              const isChecked = selectedCompanyCodes.includes(code);
+              const isOnlySelected =
+                selectedCompanyCodes.length === 1 && isChecked;
+
+              return (
+                <MenuItem key={code}>
+                  <Checkbox
+                    checked={isChecked}
+                    onClick={(e) => {
+                      e.stopPropagation();
+
+                      if (isChecked && selectedCompanyCodes.length === 1) {
+                        // prevent empty selection
+                        return;
+                      }
+
+                      if (isChecked) {
+                        setSelectedCompanyCodes(
+                          selectedCompanyCodes.filter((c) => c !== code)
+                        );
+                      } else {
+                        setSelectedCompanyCodes([
+                          ...selectedCompanyCodes,
+                          code,
+                        ]);
+                      }
+                    }}
+                  />
+
+                  <ListItemText primary={code} />
+
+                  {/* ONLY action */}
+                  {!isSingleCompanyUser && !isOnlySelected && (
+                    <Box sx={{ ml: "auto" }}>
+                      <Button
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation(); // ✅ critical
+                          setSelectedCompanyCodes([code]);
+                        }}
+                      >
+                        Only
+                      </Button>
+                    </Box>
+                  )}
+                </MenuItem>
+              );
+            })}
           </TextField>
 
           {/* Period */}
@@ -101,183 +436,288 @@ export function ReportRunnerPage() {
             select
             label="Period"
             value={yearMonth}
-            onChange={(e) => setYearMonth(e.target.value)}
             size="small"
+            onChange={(e) => setYearMonth(e.target.value)}
             sx={{ minWidth: 160 }}
           >
-            <MenuItem value="2026/01">2026/01</MenuItem>
-            <MenuItem value="2026/02">2026/02</MenuItem>
-            <MenuItem value="2026/03">2026/03</MenuItem>
-            <MenuItem value="2026/04">2026/04</MenuItem>
-          </TextField>
+            {availablePeriods.map((p) => {
+              const period =
+                typeof p.fiscalPeriod === "number"
+                  ? String(p.fiscalPeriod).padStart(2, "0")
+                  : p.fiscalPeriod.replace("P", "");
 
-          {/* Run button */}
-          <Button
-            variant="contained"
-            size="small"
-            onClick={() =>
-              setSubmittedCriteria({
-                companyCode,
-                yearMonth,
-                reportDate: new Date().toLocaleDateString(),
-              })
-            }
-            sx={{
-              height: 40, // aligns with TextField height
-              whiteSpace: "nowrap",
+              const value = `${p.fiscalYear}/${period}`;
+
+              return (
+                <MenuItem key={value} value={value}>
+                  {value}
+                </MenuItem>
+              );
+            })}
+          </TextField>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Button
+              variant="contained"
+              size="small"
+              disabled={
+                primaryButtonState.disabled ||
+                isRefreshSubmittingForSelectedCompanies
+              }
+              title={
+                isRefreshSubmittingForSelectedCompanies
+                  ? "Starting refresh…"
+                  : primaryButtonState.tooltip
+              }
+              onClick={() => {
+                if (primaryButtonState.action === "GET") {
+                  runReport();
+                }
+
+                if (primaryButtonState.action === "REFRESH") {
+                  if (primaryButtonState.requiresConfirmation) {
+                    setConfirmRefreshOpen(true);
+                  }
+                }
+              }}
+            >
+              {isRefreshSubmittingForSelectedCompanies
+                ? "Starting refresh…"
+                : primaryButtonState.label}
+            </Button>
+
+            {selectedCompanySystemStatus && (
+              <IconButton
+                onClick={handleToggleSystemStatus}
+                aria-label="Show system refresh status"
+                size="small"
+              >
+                <SystemStatusIcon status={selectedCompanySystemStatus} />
+              </IconButton>
+            )}
+          </Box>
+          <Popover
+            open={isSystemStatusOpen}
+            anchorEl={systemStatusAnchorEl}
+            onClose={handleCloseSystemStatus}
+            anchorOrigin={{
+              vertical: "bottom",
+              horizontal: "right",
             }}
+            transformOrigin={{
+              vertical: "top",
+              horizontal: "right",
+            }}
+            disableRestoreFocus
           >
-            Run report
-          </Button>
+            <Box sx={{ p: 2, minWidth: 420 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                System refresh status
+              </Typography>
+
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Company</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Last refresh</TableCell>
+                    <TableCell>Error</TableCell>
+                  </TableRow>
+                </TableHead>
+
+                <TableBody>
+                  {systemStatusForSelection.map((row) => (
+                    <TableRow key={row.companyCode}>
+                      <TableCell>{row.companyCode}</TableCell>
+                      <TableCell>{row.status}</TableCell>
+                      <TableCell>{row.generatedAt ?? "—"}</TableCell>
+                      <TableCell>{row.errorMessage ?? "—"}</TableCell>
+                    </TableRow>
+                  ))}
+
+                  {systemStatusForSelection.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4}>
+                        <Typography variant="body2" color="text.secondary">
+                          No system status available
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </Box>
+          </Popover>
         </Stack>
       </Paper>
 
-      {submittedCriteria &&
-        (() => {
-          const { fiscalYear, period } = splitYearMonth(
-            submittedCriteria.yearMonth
-          );
-
-          return (
-            <Paper sx={{ p: 3, mt: 4 }} variant="outlined">
-              <Typography variant="h6" gutterBottom>
-                Selected report criteria
-              </Typography>
-
-              <Stack spacing={1}>
-                <Typography>
-                  <strong>Company Code:</strong> {submittedCriteria.companyCode}
-                </Typography>
-                <Typography>
-                  <strong>Fiscal Year:</strong> {fiscalYear}
-                </Typography>
-                <Typography>
-                  <strong>Period:</strong> {period}
-                </Typography>
-                <Typography>
-                  <strong>Report Date:</strong> {submittedCriteria.reportDate}
-                </Typography>
-              </Stack>
-            </Paper>
-          );
-        })()}
-
-      {submittedCriteria && (
-        <Paper sx={{ p: 3, mt: 4 }}>
-          <Typography variant="h6" gutterBottom>
-            Volume of templates generated
-          </Typography>
-
-          <Stack direction={{ xs: "column", md: "row" }} spacing={3}>
-            <Paper
-              sx={{ p: 3, flex: 1, textAlign: "center" }}
-              variant="outlined"
-            >
-              <Typography variant="h4" color="primary">
-                {KPI_DATA.inScope}
-              </Typography>
-              <Typography color="text.secondary">In scope</Typography>
-            </Paper>
-
-            <Paper
-              sx={{ p: 3, flex: 1, textAlign: "center" }}
-              variant="outlined"
-            >
-              <Typography variant="h4" color="success.main">
-                {KPI_DATA.successfullyGenerated}
-              </Typography>
-              <Typography color="text.secondary">
-                Successfully generated
-              </Typography>
-            </Paper>
-          </Stack>
-        </Paper>
+      {selectedCompanySystemStatus === "RUNNING" && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Reconciliation data refresh is currently running. The view will update
+          automatically once the refresh is complete.
+        </Alert>
       )}
-      {submittedCriteria && (
-        <Paper sx={{ p: 3, mt: 4 }}>
-          {/* Header */}
 
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Status summary
-          </Typography>
+      {/* ==============================
+          Loading / Error
+         ============================== */}
+      {loading && (
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+          <CircularProgress />
+        </Box>
+      )}
 
-          {/* Content */}
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: { xs: "column", md: "row" },
-              gap: 3,
-              alignItems: "flex-start",
-            }}
-          >
-            {/* LEFT SIDE */}
-            <Box sx={{ flex: 2, minWidth: 0 }}>
-              {/* View toggle belongs here */}
-              <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-end" }}>
-                <ToggleButtonGroup
-                  value={viewMode}
-                  exclusive
-                  size="small"
-                  onChange={(_, value) => value && setViewMode(value)}
-                >
-                  <ToggleButton value="table">Show table</ToggleButton>
-                  <ToggleButton value="chart">Show chart</ToggleButton>
-                </ToggleButtonGroup>
-              </Box>
+      {error && (
+        <Typography color="error" sx={{ mt: 2 }}>
+          {error}
+        </Typography>
+      )}
 
-              {/* Content */}
+      {/* ==============================
+          Main content
+         ============================== */}
 
-              {viewMode === "table" && (
-                <StatusSummaryTable
-                  data={STATUS_SUMMARY_DATA}
-                  selectedStatus={selectedStatus}
-                  onSelect={setSelectedStatus}
-                />
-              )}
+      {data && (
+        <>
+          {/* ✅ Overview */}
+          <ReconciliationOverview
+            kpis={data.kpis}
+            systemStatus={selectedCompanySystemStatus}
+          />
 
-              {viewMode === "chart" && (
-                <StatusSummaryChart
-                  data={STATUS_SUMMARY_DATA}
-                  selectedStatus={selectedStatus}
-                  onSelect={setSelectedStatus}
-                />
-              )}
-            </Box>
+          {/* Status summary */}
+          <Paper variant="outlined" sx={{ p: 3, mt: 4 }}>
+            <Typography variant="h6" gutterBottom>
+              Status summary
+            </Typography>
 
-            {/* RIGHT SIDE — DONUTS */}
             <Box
               sx={{
-                flex: 1,
                 display: "flex",
-                flexDirection: "column",
-                gap: 2,
-
-                position: "sticky",
-                top: 0,
+                flexDirection: { xs: "column", md: "row" },
+                gap: 3,
               }}
             >
-              <DonutChart
-                label="Certification overview"
-                value={68}
-                color="#1976d2"
-              />
+              {/* LEFT */}
+              <Box sx={{ flex: 2 }}>
+                <Box
+                  sx={{
+                    mb: 2,
+                    display: "flex",
+                    justifyContent: "flex-end",
+                  }}
+                >
+                  <ToggleButtonGroup
+                    value={viewMode}
+                    exclusive
+                    size="small"
+                    onChange={(_, value) => value && setViewMode(value)}
+                  >
+                    <ToggleButton value="table">Table</ToggleButton>
+                    <ToggleButton value="chart">Chart</ToggleButton>
+                  </ToggleButtonGroup>
+                </Box>
 
-              <DonutChart
-                label="Due date overview"
-                value={82}
-                color="#2e7d32"
-              />
+                {viewMode === "table" && (
+                  <StatusSummaryTable
+                    data={reconciliationSummary}
+                    selectedStatusKey={selectedStatusKey}
+                    statusDictionary={statusDictionary}
+                    onSelect={(item) => setSelectedStatusKey(item)}
+                  />
+                )}
+
+                {viewMode === "chart" && (
+                  <StatusSummaryChart
+                    data={reconciliationSummary}
+                    selectedStatusKey={selectedStatusKey}
+                    statusDictionary={statusDictionary}
+                    onSelect={(item) => setSelectedStatusKey(item)}
+                  />
+                )}
+              </Box>
+
+              {/* RIGHT */}
+
+              <Box sx={{ flex: 1 }}>
+                <DonutChart
+                  label="Certification overview"
+                  data={certificationDonutData}
+                />
+
+                <DonutChart label="Due date overview" data={dueDateDonutData} />
+              </Box>
             </Box>
-          </Box>
-        </Paper>
+          </Paper>
+
+          {/* Details */}
+
+          {selectedStatusKey && (
+            <ReconciliationDetailTable
+              statusKey={selectedStatusKey}
+              rows={detailRows}
+              statusDictionary={statusDictionary}
+            />
+          )}
+        </>
       )}
 
-      {selectedStatus && (
-        <ReconciliationDetailTable
-          status={selectedStatus}
-          rows={MOCK_RECONCILIATION_ROWS[selectedStatus] ?? []}
+      {appInfo && (
+        <AboutDialog
+          open={aboutOpen}
+          onClose={() => setAboutOpen(false)}
+          info={appInfo}
         />
       )}
+
+      <Dialog
+        open={confirmRefreshOpen}
+        onClose={() => setConfirmRefreshOpen(false)}
+        aria-labelledby="confirm-refresh-title"
+        aria-describedby="confirm-refresh-description"
+      >
+        <DialogTitle id="confirm-refresh-title">
+          Refresh reconciliation data?
+        </DialogTitle>
+
+        <DialogContent>
+          <DialogContentText id="confirm-refresh-description">
+            This operation may take up to <strong>10 minutes</strong>.
+            <br />
+            <br />
+            During this time, reconciliation data will be recalculated and
+            refresh will be unavailable for this company.
+          </DialogContentText>
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={() => setConfirmRefreshOpen(false)} color="inherit">
+            Cancel
+          </Button>
+
+          <Button
+            variant="contained"
+            disabled={isRefreshSubmittingForSelectedCompanies}
+            onClick={async () => {
+              if (!data || selectedCompanyCodes.length === 0) return;
+
+              setConfirmRefreshOpen(false);
+
+              // Submit refresh for EACH selected company
+              for (const code of selectedCompanyCodes) {
+                await submitRefresh({
+                  companyCode: code,
+                  fiscalYear: data.period.fiscalYear,
+                  fiscalPeriod: data.period.fiscalPeriod,
+                });
+              }
+
+              runReport();
+            }}
+          >
+            Refresh data
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

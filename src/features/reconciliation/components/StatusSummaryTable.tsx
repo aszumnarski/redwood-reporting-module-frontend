@@ -1,67 +1,44 @@
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableRow,
-  } from "@mui/material";
-  
-  interface StatusSummaryItem {
-    label: string;
-    value: number;
-  }
-  
-  interface Props {
-    data: StatusSummaryItem[];
-    selectedStatus: string | null;
-    onSelect: (status: string) => void;
-  }
-  
-  export function StatusSummaryTable({
-    data,
-    selectedStatus,
-    onSelect,
-  }: Props) {
-    return (
-      <TableContainer>
-        <Table size="small">
-          <TableBody>
-            {data.map((row) => (
-              <TableRow
-                key={row.label}
-                hover
-                selected={selectedStatus === row.label}
-                onClick={() => onSelect(row.label)}
-                sx={{ cursor: "pointer" }}
-              >
-                <TableCell>{row.label}</TableCell>
-                <TableCell align="right">{row.value}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    );
-  }
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableRow,
+} from "@mui/material";
 
-/** 
-  <TableContainer>
-  <Table size="small">
-    <TableBody>
-      {STATUS_SUMMARY_DATA.map((row) => (
-        <TableRow
-          key={row.label}
-          hover
-          selected={selectedStatus === row.label}
-          onClick={() => setSelectedStatus(row.label)}
-          sx={{ cursor: "pointer" }}
-        >
-          <TableCell>{row.label}</TableCell>
-          <TableCell align="right">{row.value}</TableCell>
-        </TableRow>
-      ))}
-    </TableBody>
-  </Table>
-</TableContainer>
+import type { ReconciliationStatusSummaryItem } from "../types";
+import type { ReconciliationStatusKey } from "../types";
+interface Props {
+  data: ReconciliationStatusSummaryItem[];
+  selectedStatusKey: ReconciliationStatusKey | null;
+  statusDictionary: Partial<Record<ReconciliationStatusKey, string>>;
+  onSelect: (key: ReconciliationStatusKey) => void;
+}
 
-*/
+export function StatusSummaryTable({
+  data,
+  selectedStatusKey,
+  statusDictionary,
+  onSelect,
+}: Props) {
+  return (
+    <TableContainer>
+      <Table size="small">
+        <TableBody>
+          {data.map((row) => (
+            <TableRow
+              key={row.key}
+              hover
+              selected={row.key === selectedStatusKey}
+              onClick={() => onSelect(row.key)}
+              sx={{ cursor: "pointer" }}
+            >
+              <TableCell>{statusDictionary[row.key] ?? row.key}</TableCell>
+              <TableCell align="right">{row.count}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+}
