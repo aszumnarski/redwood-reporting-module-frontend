@@ -218,7 +218,6 @@ export function ReconciliationRunnerPage() {
   }, [availableCompanyCodes, defaultCompanyCodes, selectedCompanyCodes]);
 
   useEffect(() => {
-    console.log("period defaults", defaultPeriod);
     if (!yearMonth && defaultPeriod) {
       const period =
         typeof defaultPeriod.fiscalPeriod === "number"
@@ -232,7 +231,6 @@ export function ReconciliationRunnerPage() {
   }, [defaultPeriod, yearMonth]);
 
   useEffect(() => {
-    console.log("effect check", { yearMonth, selectedCompanyCodes });
     if (yearMonth && selectedCompanyCodes.length > 0) {
       runReport();
     }
@@ -243,11 +241,6 @@ export function ReconciliationRunnerPage() {
   // -------------------------------
 
   async function runReport() {
-    console.log("runReport called", {
-      yearMonth,
-      selectedCompanyCodes,
-      effectiveCompanyCodes,
-    });
 
     if (!yearMonth) return;
 

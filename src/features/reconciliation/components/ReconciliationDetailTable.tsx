@@ -157,7 +157,6 @@ export function ReconciliationDetailTable({
       />
     </IconButton>
   );
-
   return (
     <Paper sx={{ p: 3, mt: 4 }} variant="outlined">
       <Typography variant="h6" gutterBottom>
@@ -270,27 +269,21 @@ export function ReconciliationDetailTable({
             gap: 2,
           }}
         >
+          <TextField
+            fullWidth
+            label={getFilterLabel(activeFilterField)}
+            value={activeFilterField ? filters[activeFilterField] ?? "" : ""}
+            onChange={(event) => {
+              if (!activeFilterField) {
+                return;
+              }
 
-<TextField
-  fullWidth
-  label={getFilterLabel(activeFilterField)}
-  value={
-    activeFilterField
-      ? filters[activeFilterField] ?? ""
-      : ""
-  }
-  onChange={(event) => {
-    if (!activeFilterField) {
-      return;
-    }
-
-    setFilters((prev) => ({
-      ...prev,
-      [activeFilterField]: event.target.value,
-    }));
-  }}
-/>
-
+              setFilters((prev) => ({
+                ...prev,
+                [activeFilterField]: event.target.value,
+              }));
+            }}
+          />
         </Box>
       </Popover>
 

@@ -23,7 +23,6 @@ export function ReconciliationOverview({
     kpis.expectedReconciliations > 0
       ? Math.round((kpis.generatedReconciliations / kpis.expectedReconciliations) * 100)
       : 0;
-console.log({kpis});
   return (
     <Paper variant="outlined" sx={{ p: 3, mt: 3 }}>
       <Typography variant="h6" gutterBottom>

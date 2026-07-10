@@ -30,7 +30,6 @@ export async function fetchReconciliationData(
   if (params.companyCodes?.length) {
     query.set("companyCodes", params.companyCodes.join(","));
   }
-  console.log("API Base:", getApiBase());
   const url =
     `${getApiBase()}/reconciliation/report` +
     (query.toString() ? `?${query.toString()}` : "");
@@ -57,7 +56,6 @@ export async function requestReconciliationRefresh(
   fiscalPeriod: string,
   companyCodes: string[]
 ): Promise<RefreshReconciliationResponse> {
-  console.log("API Base:", getApiBase());
   const response = await fetch(
     `${getApiBase()}/reconciliation/regenerate`,
     {
@@ -95,7 +93,7 @@ export async function fetchReconciliationMetadata(): Promise<ReconciliationMetad
   });
 
   if (import.meta.env.DEV) {
-    console.log("Backend debug:", response.headers.get("X-Debug-Flow"));
+    //console.log("Backend debug:", response.headers.get("X-Debug-Flow"));
   }
 
   if (!response.ok) {
@@ -117,7 +115,7 @@ export async function fetchApplicationInfo(): Promise<ApplicationInfo> {
   });
 
   if (import.meta.env.DEV) {
-    console.log("Backend debug:", response.headers.get("X-Debug-Flow"));
+    //console.log("Backend debug:", response.headers.get("X-Debug-Flow"));
   }
 
   if (!response.ok) {
@@ -141,6 +139,6 @@ export async function fetchHealth(): Promise<void> {
   }
 
   if (import.meta.env.DEV) {
-    console.log("Backend debug:", response.headers.get("X-Debug-Flow"));
+    //console.log("Backend debug:", response.headers.get("X-Debug-Flow"));
   }
 }
