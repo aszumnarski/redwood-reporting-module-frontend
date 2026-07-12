@@ -30,7 +30,7 @@ export function DonutChart({ label, data }: Props) {
   const tooltipText = data
     .map(d => `${d.label}: ${d.value}`)
     .join("\n");
-
+//console.log({data})
   return (
     <Paper sx={{ p: 2 }} variant="outlined">
       <Typography variant="subtitle2" gutterBottom>
@@ -70,6 +70,40 @@ export function DonutChart({ label, data }: Props) {
           </Box>
         </Box>
       </Tooltip>
+      
+<Box
+  sx={{
+    mt: 2,
+    display: "flex",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 1.5,
+  }}
+>
+  {data.map((slice) => (
+    <Box
+      key={slice.label}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 0.75,
+      }}
+    >
+      <Box
+        sx={{
+          width: 12,
+          height: 12,
+          borderRadius: "50%",
+          bgcolor: slice.color,
+        }}
+      />
+      <Typography variant="caption">
+        {slice.label} ({slice.value})
+      </Typography>
+    </Box>
+  ))}
+</Box>
+
     </Paper>
   );
 }

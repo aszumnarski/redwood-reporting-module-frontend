@@ -49,7 +49,7 @@ export function StatusSummaryChart({
       variant="outlined"
       sx={{
         p: 2,
-        height: 320,
+        height: 360,
         display: "flex",
         flexDirection: "column",
       }}
