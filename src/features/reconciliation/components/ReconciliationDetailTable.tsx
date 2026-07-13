@@ -17,19 +17,14 @@ import {
   type GridRowParams,
 } from "@mui/x-data-grid";
 
-import type {
-  ReconciliationRow,
-  ReconciliationStatusKey,
-} from "../types";
+import type { ReconciliationRow, ReconciliationStatusKey } from "../types";
 
 import { ReconciliationRowDetails } from "./ReconciliationRowDetails";
 
 interface Props {
   rows: ReconciliationRow[];
   statusKey: ReconciliationStatusKey;
-  statusDictionary: Partial<
-    Record<ReconciliationStatusKey, string>
-  >;
+  statusDictionary: Partial<Record<ReconciliationStatusKey, string>>;
 }
 
 export function ReconciliationDetailTable({
@@ -37,10 +32,9 @@ export function ReconciliationDetailTable({
   statusKey,
   statusDictionary,
 }: Props) {
-  const [drawerRow, setDrawerRow] =
-    useState<ReconciliationRow | null>(null);
+  const [drawerRow, setDrawerRow] = useState<ReconciliationRow | null>(null);
 
-  const columns = useMemo<GridColDef[]>(
+  const columns = useMemo<GridColDef<ReconciliationRow>[]>(
     () => [
       {
         field: "jobId",
@@ -169,9 +163,7 @@ export function ReconciliationDetailTable({
             borderColor: "divider",
           }}
         >
-          <Typography variant="subtitle1">
-            Reconciliation details
-          </Typography>
+          <Typography variant="subtitle1">Reconciliation details</Typography>
 
           <IconButton onClick={() => setDrawerRow(null)}>
             <CloseIcon />

@@ -634,11 +634,11 @@ export function ReconciliationRunnerPage() {
 
               <Box sx={{ flex: 1 }}>
                 <DonutChart
-                  label="Certification overview"
+                  label="Completed recons : Auto certified and manual certified"
                   data={certificationDonutData}
                 />
 
-                <DonutChart label="Due date overview" data={dueDateDonutData} />
+                <DonutChart label="Within due date and Overdue" data={dueDateDonutData} />
               </Box>
             </Box>
           </Paper>

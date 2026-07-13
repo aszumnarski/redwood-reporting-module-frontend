@@ -41,6 +41,7 @@ export const MOCK_RECONCILIATION_ROWS: ReconciliationRow[] = [
     unanalyzedQuantity: "2",
     unanalyzedBalance: "25000",
     requestId: "REQ-01",
+    masterKey: "REQ-01",
   },
 ];
 

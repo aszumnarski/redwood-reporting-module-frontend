@@ -44,6 +44,8 @@ export interface ReconciliationRow {
   unanalyzedBalance: string;
 
   requestId: string;
+
+  masterKey: string;
 }
 
 /**
