@@ -22,7 +22,6 @@ import {
   TableRow,
   TableCell,
   TableBody,
-
 } from "@mui/material";
 
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
@@ -114,6 +113,8 @@ export function ReconciliationRunnerPage() {
   const [selectedStatusKey, setSelectedStatusKey] =
     useState<ReconciliationStatusKey | null>(null);
 
+  const [donutFilter, setDonutFilter] = useState<string | null>(null);
+
   const [confirmRefreshOpen, setConfirmRefreshOpen] = useState(false);
 
   const { isSubmitting, submitRefresh } = useReconciliationRefresh();
@@ -174,6 +175,7 @@ export function ReconciliationRunnerPage() {
       const found = aggregated.find((item) => item.key === key);
 
       return {
+        key,
         label: dictionary[key] ?? key,
         value: found?.count ?? 0,
         color,
@@ -241,7 +243,6 @@ export function ReconciliationRunnerPage() {
   // -------------------------------
 
   async function runReport() {
-
     if (!yearMonth) return;
 
     const params = toFetchParams(yearMonth, effectiveCompanyCodes);
@@ -307,6 +308,25 @@ export function ReconciliationRunnerPage() {
       </Typography>
     );
   }
+
+  console.log(data?.rows?.find((row) => row.autoCertified !== undefined));
+
+  const filteredDetailRows = detailRows.filter((row) => {
+    if (!donutFilter) {
+      return true;
+    }
+
+    switch (donutFilter) {
+      case "CERT_AUTO":
+        return row.statusKey === "C" && row.autoCertified === "Yes";
+
+      case "CERT_MANUAL":
+        return row.statusKey === "C" && row.autoCertified !== "Yes";
+
+      default:
+        return true;
+    }
+  });
 
   return (
     <Box>
@@ -616,7 +636,10 @@ export function ReconciliationRunnerPage() {
                     data={reconciliationSummary}
                     selectedStatusKey={selectedStatusKey}
                     statusDictionary={statusDictionary}
-                    onSelect={(item) => setSelectedStatusKey(item)}
+                    onSelect={(item) => {
+                      setDonutFilter(null);
+                      setSelectedStatusKey(item);
+                    }}
                   />
                 )}
 
@@ -625,7 +648,10 @@ export function ReconciliationRunnerPage() {
                     data={reconciliationSummary}
                     selectedStatusKey={selectedStatusKey}
                     statusDictionary={statusDictionary}
-                    onSelect={(item) => setSelectedStatusKey(item)}
+                    onSelect={(item) => {
+                      setDonutFilter(null);
+                      setSelectedStatusKey(item);
+                    }}
                   />
                 )}
               </Box>
@@ -636,9 +662,24 @@ export function ReconciliationRunnerPage() {
                 <DonutChart
                   label="Completed recons : Auto certified and manual certified"
                   data={certificationDonutData}
+                  onSliceClick={(value) => {
+
+                    setSelectedStatusKey(null);
+                    setDonutFilter(value);
+                  
+                  }}
                 />
 
-                <DonutChart label="Within due date and Overdue" data={dueDateDonutData} />
+                <DonutChart
+                  label="Within due date and Overdue"
+                  data={dueDateDonutData}
+                  onSliceClick={(value) => {
+
+                    setSelectedStatusKey(null);
+                    setDonutFilter(value);
+                  
+                  }}
+                />
               </Box>
             </Box>
           </Paper>
@@ -648,7 +689,7 @@ export function ReconciliationRunnerPage() {
           {selectedStatusKey && (
             <ReconciliationDetailTable
               statusKey={selectedStatusKey}
-              rows={detailRows}
+              rows={filteredDetailRows}
               statusDictionary={statusDictionary}
             />
           )}
