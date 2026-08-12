@@ -1,21 +1,24 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+
 import {
   Box,
   Drawer,
   IconButton,
   Paper,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Typography,
 } from "@mui/material";
+
 import CloseIcon from "@mui/icons-material/Close";
 
+import {
+  DataGrid,
+  type GridColDef,
+  type GridRowParams,
+} from "@mui/x-data-grid";
+
 import type { ReconciliationRow, ReconciliationStatusKey } from "../types";
+
 import { ReconciliationRowDetails } from "./ReconciliationRowDetails";
 
 interface Props {
@@ -31,71 +34,110 @@ export function ReconciliationDetailTable({
 }: Props) {
   const [drawerRow, setDrawerRow] = useState<ReconciliationRow | null>(null);
 
+  const columns = useMemo<GridColDef<ReconciliationRow>[]>(
+    () => [
+      {
+        field: "jobId",
+        headerName: "Job ID",
+        width: 120,
+      },
+      {
+        field: "statusKey",
+        headerName: "Certification Status",
+        width: 220,
+        valueGetter: (_value, row) =>
+          statusDictionary[row.statusKey] ?? row.statusKey,
+      },
+      {
+        field: "jobStatus",
+        headerName: "Job Status",
+        width: 150,
+      },
+      {
+        field: "companyCode",
+        headerName: "Company",
+        width: 130,
+      },
+      {
+        field: "account",
+        headerName: "Account",
+        width: 130,
+      },
+      {
+        field: "accountGroup",
+        headerName: "Account Group",
+        width: 180,
+      },
+      {
+        field: "preparer",
+        headerName: "Preparer",
+        width: 180,
+      },
+      {
+        field: "approver",
+        headerName: "Approver",
+        width: 180,
+      },
+      {
+        field: "reviewer",
+        headerName: "Reviewer",
+        width: 180,
+      },
+      {
+        field: "dueDate",
+        headerName: "Due Date",
+        width: 140,
+      },
+      {
+        field: "currency",
+        headerName: "Currency",
+        width: 110,
+      },
+      {
+        field: "sapBalance",
+        headerName: "SAP Balance",
+        type: "number",
+        width: 160,
+        align: "right",
+        headerAlign: "right",
+      },
+    ],
+    [statusDictionary]
+  );
+
   return (
     <Paper sx={{ p: 3, mt: 4 }} variant="outlined">
       <Typography variant="h6" gutterBottom>
         Reconciliation details – {statusDictionary[statusKey]}
       </Typography>
 
-      <TableContainer sx={{ maxHeight: 500 }}>
-        <Table size="small" stickyHeader>
-          <TableHead>
-            <TableRow>
-              <TableCell>Job ID</TableCell>
-              <TableCell>Certification Status</TableCell>
-              <TableCell>Job Status</TableCell>
-              <TableCell>Company</TableCell>
-              <TableCell>Account</TableCell>
-              <TableCell>Account Group</TableCell>
-              <TableCell>Preparer</TableCell>
-              <TableCell>Approver</TableCell>
-              <TableCell>Reviewer</TableCell>
-              <TableCell>Due Date</TableCell>
-              <TableCell>Currency</TableCell>
-              <TableCell align="right">SAP Balance</TableCell>
-            </TableRow>
-          </TableHead>
-
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow
-                key={row.jobId}
-                hover
-                sx={{
-                  cursor: "pointer",
-                  "&:hover": { backgroundColor: "action.hover" },
-                }}
-                onClick={() => setDrawerRow(row)}
-              >
-                <TableCell>{row.jobId}</TableCell>
-                <TableCell>
-                  {statusDictionary[row.statusKey] ?? row.statusKey}
-                </TableCell>
-                <TableCell>{row.jobStatus}</TableCell>
-                <TableCell>{row.companyCode}</TableCell>
-                <TableCell>{row.account}</TableCell>
-                <TableCell>{row.accountGroup}</TableCell>
-                <TableCell>{row.preparer}</TableCell>
-                <TableCell>{row.approver}</TableCell>
-                <TableCell>{row.reviewer}</TableCell>
-                <TableCell>{row.dueDate}</TableCell>
-                <TableCell>{row.currency}</TableCell>
-                <TableCell align="right">{row.sapBalance}</TableCell>
-              </TableRow>
-            ))}
-
-            {rows.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={12} align="center">
-                  No reconciliations found for this status
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      {/* RIGHT-SIDE DETAILS DRAWER */}
+      <Box sx={{ height: 600 }}>
+        <DataGrid
+          rows={rows}
+          columns={columns}
+          getRowId={(row) => row.masterKey}
+          disableRowSelectionOnClick
+          showToolbar
+          density="compact"
+          pageSizeOptions={[25, 50, 100]}
+          initialState={{
+            pagination: {
+              paginationModel: {
+                page: 0,
+                pageSize: 50,
+              },
+            },
+          }}
+          onRowClick={(params: GridRowParams) =>
+            setDrawerRow(params.row as ReconciliationRow)
+          }
+          sx={{
+            "& .MuiDataGrid-row": {
+              cursor: "pointer",
+            },
+          }}
+        />
+      </Box>
 
       <Drawer
         anchor="right"
@@ -110,7 +152,6 @@ export function ReconciliationDetailTable({
           },
         }}
       >
-        {/* HEADER */}
         <Stack
           direction="row"
           sx={{
@@ -123,12 +164,12 @@ export function ReconciliationDetailTable({
           }}
         >
           <Typography variant="subtitle1">Reconciliation details</Typography>
+
           <IconButton onClick={() => setDrawerRow(null)}>
             <CloseIcon />
           </IconButton>
         </Stack>
 
-        {/* CONTENT */}
         <Box sx={{ flex: 1, overflowY: "auto" }}>
           {drawerRow && (
             <ReconciliationRowDetails

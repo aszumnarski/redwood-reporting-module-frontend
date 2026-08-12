@@ -34,13 +34,12 @@ import { useEffect, useState } from "react";
 
 import { Popover } from "@mui/material";
 
-import { fetchReconciliationData } from "../../api/reconciliation.api";
+import { fetchReconciliationData } from "../../api/reconciliationApi";
 
 import type {
   FetchReconciliationResponse,
   FetchReconciliationParams,
   ReconciliationStatusKey,
-  ReconciliationStatusSummaryItem,
 } from "../reconciliation/types";
 
 import { SystemStatusIcon } from "./components/SystemStatusIcon";
@@ -113,6 +112,11 @@ export function ReconciliationRunnerPage() {
   const [selectedStatusKey, setSelectedStatusKey] =
     useState<ReconciliationStatusKey | null>(null);
 
+    const [donutFilter, setDonutFilter] = useState<{
+      field: "certificationCategory" | "dueDateCategory";
+      value: string;
+    } | null>(null);
+
   const [confirmRefreshOpen, setConfirmRefreshOpen] = useState(false);
 
   const { isSubmitting, submitRefresh } = useReconciliationRefresh();
@@ -144,35 +148,36 @@ export function ReconciliationRunnerPage() {
 
   const certificationDonutConfig = [
     {
-      key: "CERT_AUTO" as const,
+      key: "AUTO_CERTIFIED" as const,
       color: "#1976d2",
     },
     {
-      key: "CERT_MANUAL" as const,
+      key: "MANUAL_CERTIFIED" as const,
       color: "#9c27b0",
     },
   ];
 
   const dueDateDonutConfig = [
     {
-      key: "DUE_IN" as const,
+      key: "IN_DUE_DATE" as const,
       color: "#2e7d32",
     },
     {
-      key: "DUE_OVER" as const,
+      key: "OVERDUE" as const,
       color: "#d32f2f",
     },
   ];
 
   function buildDonutData(
-    aggregated: ReconciliationStatusSummaryItem[],
-    config: { key: ReconciliationStatusKey; color: string }[],
+    aggregated: { key: string; count: number }[],
+    config: { key: string; color: string }[],
     dictionary: Record<string, string>
   ) {
     return config.map(({ key, color }) => {
       const found = aggregated.find((item) => item.key === key);
-
+  
       return {
+        key,
         label: dictionary[key] ?? key,
         value: found?.count ?? 0,
         color,
@@ -217,7 +222,6 @@ export function ReconciliationRunnerPage() {
   }, [availableCompanyCodes, defaultCompanyCodes, selectedCompanyCodes]);
 
   useEffect(() => {
-    console.log("period defaults", defaultPeriod);
     if (!yearMonth && defaultPeriod) {
       const period =
         typeof defaultPeriod.fiscalPeriod === "number"
@@ -231,7 +235,6 @@ export function ReconciliationRunnerPage() {
   }, [defaultPeriod, yearMonth]);
 
   useEffect(() => {
-    console.log("effect check", { yearMonth, selectedCompanyCodes });
     if (yearMonth && selectedCompanyCodes.length > 0) {
       runReport();
     }
@@ -242,12 +245,6 @@ export function ReconciliationRunnerPage() {
   // -------------------------------
 
   async function runReport() {
-    console.log("runReport called", {
-      yearMonth,
-      selectedCompanyCodes,
-      effectiveCompanyCodes,
-    });
-
     if (!yearMonth) return;
 
     const params = toFetchParams(yearMonth, effectiveCompanyCodes);
@@ -269,17 +266,17 @@ export function ReconciliationRunnerPage() {
   const statusDictionary: Partial<Record<ReconciliationStatusKey, string>> =
     data?.statusDictionary ?? {};
 
-  const certificationDonutData = buildDonutData(
-    certificationSummary,
-    certificationDonutConfig,
-    statusDictionary
-  );
+    const certificationDonutData = buildDonutData(
+      certificationSummary,
+      certificationDonutConfig,
+      data?.certificationDictionary ?? {}
+    );
 
-  const dueDateDonutData = buildDonutData(
-    dueDateSummary,
-    dueDateDonutConfig,
-    statusDictionary
-  );
+    const dueDateDonutData = buildDonutData(
+      dueDateSummary,
+      dueDateDonutConfig,
+      data?.dueDateDictionary ?? {}
+    );
 
   const isSingleCompanyUser = availableCompanyCodes.length === 1;
 
@@ -313,6 +310,15 @@ export function ReconciliationRunnerPage() {
       </Typography>
     );
   }
+
+  console.log(data?.rows?.find((row) => row.autoCertified !== undefined));
+
+  const filteredDetailRows = detailRows.filter((row) => {
+     if (!donutFilter) {
+         return true; 
+        }
+        return row[donutFilter.field] === donutFilter.value;
+      });
 
   return (
     <Box>
@@ -578,13 +584,11 @@ export function ReconciliationRunnerPage() {
 
       {data && (
         <>
-          {/* ✅ Overview */}
           <ReconciliationOverview
             kpis={data.kpis}
             systemStatus={selectedCompanySystemStatus}
           />
 
-          {/* Status summary */}
           <Paper variant="outlined" sx={{ p: 3, mt: 4 }}>
             <Typography variant="h6" gutterBottom>
               Status summary
@@ -597,7 +601,6 @@ export function ReconciliationRunnerPage() {
                 gap: 3,
               }}
             >
-              {/* LEFT */}
               <Box sx={{ flex: 2 }}>
                 <Box
                   sx={{
@@ -622,7 +625,10 @@ export function ReconciliationRunnerPage() {
                     data={reconciliationSummary}
                     selectedStatusKey={selectedStatusKey}
                     statusDictionary={statusDictionary}
-                    onSelect={(item) => setSelectedStatusKey(item)}
+                    onSelect={(item) => {
+                      setDonutFilter(null);
+                      setSelectedStatusKey(item);
+                    }}
                   />
                 )}
 
@@ -631,20 +637,49 @@ export function ReconciliationRunnerPage() {
                     data={reconciliationSummary}
                     selectedStatusKey={selectedStatusKey}
                     statusDictionary={statusDictionary}
-                    onSelect={(item) => setSelectedStatusKey(item)}
+                    onSelect={(item) => {
+                      setDonutFilter(null);
+                      setSelectedStatusKey(item);
+                    }}
                   />
                 )}
               </Box>
 
-              {/* RIGHT */}
-
               <Box sx={{ flex: 1 }}>
                 <DonutChart
-                  label="Certification overview"
+                  label="Completed recons : Auto certified and manual certified"
                   data={certificationDonutData}
+                  onSliceClick={(value) => {
+                    setSelectedStatusKey(null);
+                  
+                    setDonutFilter(
+                      value
+                        ? {
+                            field: "certificationCategory",
+                            value,
+                          }
+                        : null
+                    );
+                  
+                  }}
                 />
 
-                <DonutChart label="Due date overview" data={dueDateDonutData} />
+                <DonutChart
+                  label="Within due date and Overdue"
+                  data={dueDateDonutData}
+                  onSliceClick={(value) => {
+                    setSelectedStatusKey(null);
+                  
+                    setDonutFilter(
+                      value
+                        ? {
+                            field: "dueDateCategory",
+                            value,
+                          }
+                        : null
+                    );
+                  }}
+                />
               </Box>
             </Box>
           </Paper>
@@ -654,7 +689,7 @@ export function ReconciliationRunnerPage() {
           {selectedStatusKey && (
             <ReconciliationDetailTable
               statusKey={selectedStatusKey}
-              rows={detailRows}
+              rows={filteredDetailRows}
               statusDictionary={statusDictionary}
             />
           )}

@@ -30,7 +30,6 @@ export async function fetchReconciliationData(
   if (params.companyCodes?.length) {
     query.set("companyCodes", params.companyCodes.join(","));
   }
-
   const url =
     `${getApiBase()}/reconciliation/report` +
     (query.toString() ? `?${query.toString()}` : "");
@@ -94,7 +93,7 @@ export async function fetchReconciliationMetadata(): Promise<ReconciliationMetad
   });
 
   if (import.meta.env.DEV) {
-    console.log("Backend debug:", response.headers.get("X-Debug-Flow"));
+    //console.log("Backend debug:", response.headers.get("X-Debug-Flow"));
   }
 
   if (!response.ok) {
@@ -116,7 +115,7 @@ export async function fetchApplicationInfo(): Promise<ApplicationInfo> {
   });
 
   if (import.meta.env.DEV) {
-    console.log("Backend debug:", response.headers.get("X-Debug-Flow"));
+    //console.log("Backend debug:", response.headers.get("X-Debug-Flow"));
   }
 
   if (!response.ok) {
@@ -140,6 +139,6 @@ export async function fetchHealth(): Promise<void> {
   }
 
   if (import.meta.env.DEV) {
-    console.log("Backend debug:", response.headers.get("X-Debug-Flow"));
+    //console.log("Backend debug:", response.headers.get("X-Debug-Flow"));
   }
 }
