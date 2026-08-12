@@ -1,29 +1,29 @@
-import type {
-  ReconciliationCompanyStatusSummary,
-  ReconciliationStatusSummaryItem,
-  ReconciliationStatusKey,
-} from "../types";
-export function aggregateStatusSummaryByCompanySelection(
+import type { ReconciliationCompanyStatusSummary } from "../types";
+
+export function aggregateStatusSummaryByCompanySelection<T extends string>(
   summariesByCompany: ReconciliationCompanyStatusSummary[],
-  selectedCompanyCodes: string[]
-): ReconciliationStatusSummaryItem[] {
-  if (!summariesByCompany || summariesByCompany.length === 0) {
+  selectedCompanyCodes: string[],
+  selector: (company: ReconciliationCompanyStatusSummary) => {
+    key: T;
+    count: number;
+  }[]
+): { key: T; count: number }[] {
+  if (!summariesByCompany?.length) {
     return [];
   }
 
   const selectedSet =
     selectedCompanyCodes.length > 0 ? new Set(selectedCompanyCodes) : undefined;
 
-  const totals = new Map<ReconciliationStatusKey, number>();
+  const totals = new Map<T, number>();
 
   for (const companySummary of summariesByCompany) {
     if (selectedSet && !selectedSet.has(companySummary.companyCode)) {
       continue;
     }
 
-    for (const bucket of companySummary.summary) {
-      const existing = totals.get(bucket.key) ?? 0;
-      totals.set(bucket.key, existing + bucket.count);
+    for (const bucket of selector(companySummary)) {
+      totals.set(bucket.key, (totals.get(bucket.key) ?? 0) + bucket.count);
     }
   }
 

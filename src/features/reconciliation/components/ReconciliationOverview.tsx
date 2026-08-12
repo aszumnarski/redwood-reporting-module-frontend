@@ -32,12 +32,12 @@ export function ReconciliationOverview({
       {/* KPI cards */}
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
         <Box sx={{ flex: 1 }}>
-          <KpiCard label="In scope" value={kpis.expectedReconciliations} />
+          <KpiCard label="In scope account items" value={kpis.expectedReconciliations} />
         </Box>
 
         <Box sx={{ flex: 1 }}>
           <KpiCard
-            label="Successfully generated"
+            label="Successfully generated account items"
             value={kpis.generatedReconciliations}
             valueColor="success.main"
           />

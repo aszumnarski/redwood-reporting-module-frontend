@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchReconciliationMetadata } from "../../../api/reconciliation.api";
+import { fetchReconciliationMetadata } from "../../../api/reconciliationApi";
 import type { ReconciliationMetadataResponse } from "../types";
 
 export function useReconciliationMetadata() {

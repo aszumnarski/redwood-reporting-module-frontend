@@ -16,6 +16,8 @@ export interface ReconciliationRow {
   reviewerResponder: string;
 
   statusKey: ReconciliationStatusKey;
+  certificationCategory: CertificationCategory;
+  dueDateCategory: DueDateCategory;
   preparerTimestamp?: string;
   approverTimestamp?: string;
   reviewerTimestamp?: string;
@@ -106,6 +108,8 @@ export interface FetchReconciliationResponse {
   period: ReconciliationPeriod;
   kpis: ReconciliationKpis;
   statusDictionary: Record<ReconciliationStatusKey, string>;
+  certificationDictionary: Record<CertificationCategory, string>;
+  dueDateDictionary: Record<DueDateCategory, string>;
   statusSummariesByCompany: ReconciliationCompanyStatusSummary[];
   rows: ReconciliationRow[];
   systemStatus: ReconciliationCompanySystemStatus[];
@@ -114,6 +118,8 @@ export interface FetchReconciliationResponse {
 export interface ReconciliationCompanyStatusSummary {
   companyCode: string;
   summary: ReconciliationStatusSummaryItem[];
+  certification: ReconciliationCertificationSummaryItem[];
+  dueDates: ReconciliationDueDateSummaryItem[];
 }
 
 /**
@@ -127,7 +133,6 @@ export interface RefreshReconciliationResponse {
 }
 
 export type ReconciliationStatusKey =
-  // Existing reconciliation workflow statuses
   | "T"
   | "C"
   | "C0"
@@ -136,21 +141,37 @@ export type ReconciliationStatusKey =
   | "WA"
   | "WR"
   | "E"
-  | "NYG"
-  | "CERT_AUTO"
-  | "CERT_MANUAL"
-  | "DUE_IN"
-  | "DUE_OVER";
+  | "NYG";
+
+  export type CertificationCategory =
+  | "AUTO_CERTIFIED"
+  | "MANUAL_CERTIFIED"
+  | "NOT_COMPLETED";
+
+  export type DueDateCategory =
+  | "OVERDUE"
+  | "IN_DUE_DATE"
+  | "NOT_APPLICABLE";
 
 export interface ReconciliationStatusSummaryItem {
   key: ReconciliationStatusKey;
   count: number;
 }
 
+export interface ReconciliationDueDateSummaryItem {
+  key: DueDateCategory;
+  count: number;
+}
+
+export interface ReconciliationCertificationSummaryItem {
+  key: CertificationCategory;
+  count: number;
+}
+
 export interface ReconciliationMetadataResponse {
   availableCompanyCodes: string[];
 
-  defaultCompanyCodes: string[]; // usually all
+  defaultCompanyCodes: string[];
 
   availablePeriods: ReconciliationPeriod[];
 

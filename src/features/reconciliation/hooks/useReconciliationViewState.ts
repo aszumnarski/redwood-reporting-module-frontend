@@ -1,11 +1,13 @@
 import { useMemo } from "react";
-import { useAggregatedStatusSummary } from "./useAggregatedStatusSummary";
+
 import type {
   FetchReconciliationResponse,
   ReconciliationRow,
   ReconciliationStatusKey,
   ReconciliationSystemStatus,
 } from "../types";
+
+import { aggregateStatusSummaryByCompanySelection } from "../logic/aggregateStatusSummaryByCompanySelection";
 
 interface UseReconciliationViewStateParams {
   data: FetchReconciliationResponse | null;
@@ -18,23 +20,27 @@ export function useReconciliationViewState({
   selectedCompanyCodes,
   selectedStatusKey,
 }: UseReconciliationViewStateParams) {
-  const aggregatedStatusSummary = useAggregatedStatusSummary({
-    statusSummariesByCompany: data?.statusSummariesByCompany,
+
+  const reconciliationSummary =
+  aggregateStatusSummaryByCompanySelection(
+    data?.statusSummariesByCompany ?? [],
     selectedCompanyCodes,
-  });
-
+    company => company.summary
+  );
   
-const reconciliationSummary = aggregatedStatusSummary.filter(item =>
-  ["T", "C", "C0", "O", "R", "WA", "WR", "E", "NYG"].includes(item.key)
-);
-
-const certificationSummary = aggregatedStatusSummary.filter(item =>
-  ["CERT_AUTO", "CERT_MANUAL"].includes(item.key)
-);
-
-const dueDateSummary = aggregatedStatusSummary.filter(item =>
-  ["DUE_IN", "DUE_OVER"].includes(item.key)
-);
+  const certificationSummary =
+  aggregateStatusSummaryByCompanySelection(
+    data?.statusSummariesByCompany ?? [],
+    selectedCompanyCodes,
+    company => company.certification
+  );
+  
+  const dueDateSummary =
+  aggregateStatusSummaryByCompanySelection(
+    data?.statusSummariesByCompany ?? [],
+    selectedCompanyCodes,
+    company => company.dueDates
+  );
 
 
   const selectedCompanySystemStatus = useMemo<

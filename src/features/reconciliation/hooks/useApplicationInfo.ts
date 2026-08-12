@@ -1,6 +1,6 @@
 // features/appInfo/hooks/useApplicationInfo.ts
 import { useEffect, useState } from "react";
-import { fetchApplicationInfo } from "../../../api/reconciliation.api";
+import { fetchApplicationInfo } from "../../../api/reconciliationApi";
 import type { ApplicationInfo } from "../types";
 
 const FALLBACK_INFO: ApplicationInfo = {

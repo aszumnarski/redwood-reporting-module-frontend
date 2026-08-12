@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { requestReconciliationRefresh } from "../../../api/reconciliation.api";
+import { requestReconciliationRefresh } from "../../../api/reconciliationApi";
 
 interface SubmitRefreshParams {
   companyCode: string;
