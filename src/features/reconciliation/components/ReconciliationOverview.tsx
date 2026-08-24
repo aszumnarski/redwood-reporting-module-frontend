@@ -46,6 +46,11 @@ export function ReconciliationOverview({
         <Box sx={{ flex: 1 }}>
           <KpiCard label="Success rate" value={`${successRate}%`} />
         </Box>
+
+        <Box sx={{ flex: 1 }}>
+          <KpiCard label="Generated but removed from master" value={kpis.generatedButRemovedFromMaster} />
+        </Box>
+
       </Stack>
 
       {/* Status messaging */}

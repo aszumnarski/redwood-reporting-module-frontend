@@ -101,6 +101,16 @@ export function ReconciliationDetailTable({
         align: "right",
         headerAlign: "right",
       },
+      {
+        field: "masterKey",
+        headerName: "Master Key",
+        width: 130,
+      },
+      {
+        field: "masterTable",
+        headerName: "Master Table",
+        width: 130,
+      },
     ],
     [statusDictionary]
   );
@@ -116,6 +126,9 @@ export function ReconciliationDetailTable({
           rows={rows}
           columns={columns}
           getRowId={(row) => row.masterKey}
+          getRowClassName={(params) =>
+            params.row.removedFromMaster ? "removed-from-master" : ""
+          }
           disableRowSelectionOnClick
           showToolbar
           density="compact"
@@ -134,6 +147,14 @@ export function ReconciliationDetailTable({
           sx={{
             "& .MuiDataGrid-row": {
               cursor: "pointer",
+            },
+
+            "& .removed-from-master": {
+              backgroundColor: "#fff4cc",
+            },
+
+            "& .removed-from-master:hover": {
+              backgroundColor: "#ffeaa7",
             },
           }}
         />

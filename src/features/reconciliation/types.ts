@@ -48,6 +48,9 @@ export interface ReconciliationRow {
   requestId: string;
 
   masterKey: string;
+  masterTable: string;
+
+  removedFromMaster: boolean;
 }
 
 /**
@@ -67,6 +70,7 @@ export interface ReconciliationPeriod {
 export interface ReconciliationKpis {
   expectedReconciliations: number;
   generatedReconciliations: number;
+  generatedButRemovedFromMaster: number;
 }
 
 /* --------------------------------

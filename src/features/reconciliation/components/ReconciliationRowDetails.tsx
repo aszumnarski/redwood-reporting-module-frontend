@@ -169,6 +169,14 @@ export function ReconciliationRowDetails({ row, statusDictionary}: Props) {
             label="Auto Certified"
             value={row.autoCertified}
           />
+          <Field
+            label="Master Key"
+            value={row.masterKey}
+          />
+          <Field
+            label="Master Table"
+            value={row.masterTable}
+          />
         </Stack>
 
         <Divider />
