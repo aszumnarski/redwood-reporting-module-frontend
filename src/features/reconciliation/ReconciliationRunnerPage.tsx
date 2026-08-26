@@ -317,7 +317,7 @@ export function ReconciliationRunnerPage() {
     );
   }
 
-  console.log(data?.rows?.find((row) => row.autoCertified !== undefined));
+  //console.log(data?.rows?.find((row) => row.autoCertified !== undefined));
 
   const filteredDetailRows = detailRows.filter((row) => {
     if (!donutFilter) {
