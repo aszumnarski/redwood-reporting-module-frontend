@@ -73,7 +73,7 @@ export function ReconciliationDetailTable({
       };
 
       if (field === "statusKey") {
-        column.valueGetter = (_value, row) =>
+        column.valueGetter = (_value, row: ReconciliationRow) =>
           statusDictionary[row.statusKey] ?? row.statusKey;
       }
       if (field === "certificationCategory") {
