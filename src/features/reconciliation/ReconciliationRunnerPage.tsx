@@ -112,10 +112,10 @@ export function ReconciliationRunnerPage() {
   const [selectedStatusKey, setSelectedStatusKey] =
     useState<ReconciliationStatusKey | null>(null);
 
-    const [donutFilter, setDonutFilter] = useState<{
-      field: "certificationCategory" | "dueDateCategory";
-      value: string;
-    } | null>(null);
+  const [donutFilter, setDonutFilter] = useState<{
+    field: "certificationCategory" | "dueDateCategory";
+    value: string;
+  } | null>(null);
 
   const [confirmRefreshOpen, setConfirmRefreshOpen] = useState(false);
 
@@ -175,7 +175,7 @@ export function ReconciliationRunnerPage() {
   ) {
     return config.map(({ key, color }) => {
       const found = aggregated.find((item) => item.key === key);
-  
+
       return {
         key,
         label: dictionary[key] ?? key,
@@ -266,17 +266,23 @@ export function ReconciliationRunnerPage() {
   const statusDictionary: Partial<Record<ReconciliationStatusKey, string>> =
     data?.statusDictionary ?? {};
 
-    const certificationDonutData = buildDonutData(
-      certificationSummary,
-      certificationDonutConfig,
-      data?.certificationDictionary ?? {}
-    );
+  const certificationDictionary: Record<string, string> =
+    data?.certificationDictionary ?? {};
 
-    const dueDateDonutData = buildDonutData(
-      dueDateSummary,
-      dueDateDonutConfig,
-      data?.dueDateDictionary ?? {}
-    );
+    const dueDateDictionary: Record<string, string> =
+    data?.dueDateDictionary ?? {}; 
+
+  const certificationDonutData = buildDonutData(
+    certificationSummary,
+    certificationDonutConfig,
+    certificationDictionary
+  );
+
+  const dueDateDonutData = buildDonutData(
+    dueDateSummary,
+    dueDateDonutConfig,
+    dueDateDictionary
+  );
 
   const isSingleCompanyUser = availableCompanyCodes.length === 1;
 
@@ -314,11 +320,11 @@ export function ReconciliationRunnerPage() {
   console.log(data?.rows?.find((row) => row.autoCertified !== undefined));
 
   const filteredDetailRows = detailRows.filter((row) => {
-     if (!donutFilter) {
-         return true; 
-        }
-        return row[donutFilter.field] === donutFilter.value;
-      });
+    if (!donutFilter) {
+      return true;
+    }
+    return row[donutFilter.field] === donutFilter.value;
+  });
 
   return (
     <Box>
@@ -651,7 +657,7 @@ export function ReconciliationRunnerPage() {
                   data={certificationDonutData}
                   onSliceClick={(value) => {
                     setSelectedStatusKey(null);
-                  
+
                     setDonutFilter(
                       value
                         ? {
@@ -660,7 +666,6 @@ export function ReconciliationRunnerPage() {
                           }
                         : null
                     );
-                  
                   }}
                 />
 
@@ -669,7 +674,7 @@ export function ReconciliationRunnerPage() {
                   data={dueDateDonutData}
                   onSliceClick={(value) => {
                     setSelectedStatusKey(null);
-                  
+
                     setDonutFilter(
                       value
                         ? {
@@ -691,6 +696,8 @@ export function ReconciliationRunnerPage() {
               statusKey={selectedStatusKey}
               rows={filteredDetailRows}
               statusDictionary={statusDictionary}
+              certificationDictionary={certificationDictionary}
+              dueDateDictionary={dueDateDictionary}
             />
           )}
         </>

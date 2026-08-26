@@ -43,6 +43,51 @@ export function useReconciliationViewState({
   );
 
 
+console.log(
+  "statusSummariesByCompany",
+  JSON.stringify(data?.statusSummariesByCompany, null, 2)
+);
+
+console.log(
+  "reconciliationSummary",
+  JSON.stringify(reconciliationSummary, null, 2)
+);
+
+console.log(
+  "reconciliationSummary total",
+  reconciliationSummary.reduce(
+    (sum, item) => sum + item.count,
+    0
+  )
+);
+
+console.log(
+  "certificationSummary",
+  JSON.stringify(certificationSummary, null, 2)
+);
+
+console.log(
+  "certificationSummary total",
+  certificationSummary.reduce(
+    (sum, item) => sum + item.count,
+    0
+  )
+);
+
+console.log(
+  "dueDateSummary",
+  JSON.stringify(dueDateSummary, null, 2)
+);
+
+console.log(
+  "dueDateSummary total",
+  dueDateSummary.reduce(
+    (sum, item) => sum + item.count,
+    0
+  )
+);
+
+
   const selectedCompanySystemStatus = useMemo<
     ReconciliationSystemStatus | undefined
   >(() => {

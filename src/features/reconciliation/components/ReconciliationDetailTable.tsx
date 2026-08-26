@@ -25,95 +25,94 @@ interface Props {
   rows: ReconciliationRow[];
   statusKey: ReconciliationStatusKey;
   statusDictionary: Partial<Record<ReconciliationStatusKey, string>>;
+  certificationDictionary: Record<string, string>;
+  dueDateDictionary: Record<string, string>;
 }
+
+
+
+const COLUMN_LABELS: Record<string, string> = {
+  jobId: "Job ID",
+  statusKey: "Certification Status",
+  companyCode: "Company",
+  sapBalance: "SAP Balance",
+  accountGroup: "Account Group",
+};
+
+const prettify = (field: string) =>
+  field.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
 
 export function ReconciliationDetailTable({
   rows,
   statusKey,
   statusDictionary,
+  certificationDictionary,
+  dueDateDictionary,
 }: Props) {
   const [drawerRow, setDrawerRow] = useState<ReconciliationRow | null>(null);
+  const [columnVisibilityModel, setColumnVisibilityModel] = useState(() => {
+    const saved = localStorage.getItem("reconciliation-detail-columns");
+  
+    return saved ? JSON.parse(saved) : {};
+  });
+  const columns = useMemo<GridColDef[]>(() => {
+    if (!rows.length) {
+      return [];
+    }
 
-  const columns = useMemo<GridColDef<ReconciliationRow>[]>(
-    () => [
-      {
-        field: "jobId",
-        headerName: "Job ID",
-        width: 120,
-      },
-      {
-        field: "statusKey",
-        headerName: "Certification Status",
-        width: 220,
-        valueGetter: (_value, row) =>
-          statusDictionary[row.statusKey] ?? row.statusKey,
-      },
-      {
-        field: "jobStatus",
-        headerName: "Job Status",
-        width: 150,
-      },
-      {
-        field: "companyCode",
-        headerName: "Company",
-        width: 130,
-      },
-      {
-        field: "account",
-        headerName: "Account",
-        width: 130,
-      },
-      {
-        field: "accountGroup",
-        headerName: "Account Group",
-        width: 180,
-      },
-      {
-        field: "preparer",
-        headerName: "Preparer",
-        width: 180,
-      },
-      {
-        field: "approver",
-        headerName: "Approver",
-        width: 180,
-      },
-      {
-        field: "reviewer",
-        headerName: "Reviewer",
-        width: 180,
-      },
-      {
-        field: "dueDate",
-        headerName: "Due Date",
-        width: 140,
-      },
-      {
-        field: "currency",
-        headerName: "Currency",
-        width: 110,
-      },
-      {
-        field: "sapBalance",
-        headerName: "SAP Balance",
-        type: "number",
-        width: 160,
-        align: "right",
-        headerAlign: "right",
-      },
-      {
-        field: "masterKey",
-        headerName: "Master Key",
-        width: 130,
-      },
-      {
-        field: "masterTable",
-        headerName: "Master Table",
-        width: 130,
-      },
-    ],
-    [statusDictionary]
-  );
+    const allFields = Array.from(
+      new Set(rows.flatMap((row) => Object.keys(row)))
+    );
+
+    return allFields.map((field) => {
+      const column: GridColDef = {
+        field,
+        headerName: COLUMN_LABELS[field] ?? prettify(field),
+        minWidth: 120,
+        flex: 1,
+      };
+
+      if (field === "statusKey") {
+        column.valueGetter = (_value, row) =>
+          statusDictionary[row.statusKey] ?? row.statusKey;
+      }
+      if (field === "certificationCategory") {
+        column.valueGetter = (_value, row) =>
+          certificationDictionary[row.certificationCategory] ??
+          row.certificationCategory;
+      }
+
+      if (field === "dueDateCategory") {
+        column.valueGetter = (_value, row) =>
+          dueDateDictionary[row.dueDateCategory] ?? row.dueDateCategory;
+      }
+
+      const numericFields = [
+        "sapBalance",
+        "analyzedBalance",
+        "unanalyzedBalance",
+        "analyzedQuantity",
+        "unanalyzedQuantity",
+      ];
+
+      if (numericFields.includes(field)) {
+        column.align = "right";
+        column.headerAlign = "right";
+
+        column.valueFormatter = (value) => {
+          if (value == null || value === "" || value === "n/a") {
+            return value;
+          }
+
+          const number = Number(value);
+
+          return Number.isNaN(number) ? value : number.toLocaleString();
+        };
+      }
+
+      return column;
+    });
+  }, [rows]);
 
   return (
     <Paper sx={{ p: 3, mt: 4 }} variant="outlined">
@@ -126,6 +125,15 @@ export function ReconciliationDetailTable({
           rows={rows}
           columns={columns}
           getRowId={(row) => row.masterKey}
+          columnVisibilityModel={columnVisibilityModel}
+          onColumnVisibilityModelChange={(model) => {
+            setColumnVisibilityModel(model);
+
+            localStorage.setItem(
+              "reconciliation-detail-columns",
+              JSON.stringify(model)
+            );
+          }}
           getRowClassName={(params) =>
             params.row.removedFromMaster ? "removed-from-master" : ""
           }
