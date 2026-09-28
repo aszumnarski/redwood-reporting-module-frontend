@@ -124,7 +124,8 @@ export function ReconciliationDetailTable({
         <DataGrid
           rows={rows}
           columns={columns}
-          getRowId={(row) => row.masterKey}
+          //getRowId={(row) => row.masterKey}
+          getRowId={(row) => `${row.masterKey}-${row.jobId ?? "NYG"}`}
           columnVisibilityModel={columnVisibilityModel}
           onColumnVisibilityModelChange={(model) => {
             setColumnVisibilityModel(model);

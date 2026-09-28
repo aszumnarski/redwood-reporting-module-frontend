@@ -1,10 +1,12 @@
 import type { ReconciliationSystemStatus } from "../types";
 
+const ENABLE_REFRESH_FOR_ALL_COMPANIES = false;
+
 export function resolvePrimaryButtonState(
   context: ButtonStateContext
 ): PrimaryButtonState {
   // 1️⃣ ALL companies → READ-ONLY
-  if (context.isAllCompanies) {
+  if (context.isAllCompanies && ENABLE_REFRESH_FOR_ALL_COMPANIES) {
     return {
       label: "Run report",
       action: "GET",
